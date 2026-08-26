@@ -1,18 +1,45 @@
 package main
 
 import (
+	"crypto/rand"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	_ "modernc.org/sqlite"
+	"golang.org/x/crypto/bcrypt"
 )
 
 var db *sql.DB
+
+// Session store
+var (
+	sessions   = make(map[string]string) // token -> role
+	sessionsMu sync.RWMutex
+)
+
+func createSession(role string) string {
+	b := make([]byte, 32)
+	rand.Read(b)
+	token := hex.EncodeToString(b)
+	sessionsMu.Lock()
+	sessions[token] = role
+	sessionsMu.Unlock()
+	return token
+}
+
+func validateSession(token string) (string, bool) {
+	sessionsMu.RLock()
+	defer sessionsMu.RUnlock()
+	role, ok := sessions[token]
+	return role, ok
+}
 
 type Product struct {
 	ID           int    `json:"id"`
@@ -242,13 +269,15 @@ func initDB() {
 			p.sku, p.name, p.price, p.cost, p.cat, p.stock, p.unit, p.barcode, p.promoPrice, p.promoActive)
 	}
 
+	// Seed users with bcrypt-hashed passwords
 	users := []struct{ u, p, d, r string }{
 		{"admin", "admin123", "Admin Utama", "admin"},
 		{"kasir1", "kasir123", "Andi", "kasir"},
 		{"kasir2", "kasir123", "Budi", "kasir"},
 	}
 	for _, u := range users {
-		db.Exec("INSERT OR IGNORE INTO users (username,password,display_name,role) VALUES (?,?,?,?)", u.u, u.p, u.d, u.r)
+		hash, _ := bcrypt.GenerateFromPassword([]byte(u.p), 10)
+		db.Exec("INSERT OR IGNORE INTO users (username,password,display_name,role) VALUES (?,?,?,?)", u.u, string(hash), u.d, u.r)
 	}
 
 	settings := map[string]string{

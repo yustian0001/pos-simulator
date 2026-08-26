@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"golang.org/x/crypto/bcrypt"
 )
 
 var (
@@ -66,14 +67,41 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 		jsonResponse(w, map[string]string{"status": "error", "message": "Invalid request"}, 400)
 		return
 	}
+	if req.Username == "" || req.Password == "" {
+		jsonResponse(w, map[string]string{"status": "error", "message": "Username dan password wajib diisi"}, 400)
+		return
+	}
+
 	var user User
-	err := db.QueryRow("SELECT id,username,password,display_name,role FROM users WHERE username=? AND password=? AND active=1",
-		req.Username, req.Password).Scan(&user.ID, &user.Username, &user.Password, &user.DisplayName, &user.Role)
+	err := db.QueryRow("SELECT id,username,password,display_name,role FROM users WHERE username=? AND active=1",
+		req.Username).Scan(&user.ID, &user.Username, &user.Password, &user.DisplayName, &user.Role)
 	if err != nil {
 		jsonResponse(w, map[string]string{"status": "error", "message": "Username atau password salah"}, 401)
 		return
 	}
-	jsonResponse(w, map[string]string{"status": "ok", "username": user.Username, "display_name": user.DisplayName, "role": user.Role}, 200)
+
+	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password)); err != nil {
+		jsonResponse(w, map[string]string{"status": "error", "message": "Username atau password salah"}, 401)
+		return
+	}
+
+	token := createSession(user.Role)
+	jsonResponse(w, map[string]string{"status": "ok", "username": user.Username, "display_name": user.DisplayName, "role": user.Role, "token": token}, 200)
+}
+
+func requireAuth(r *http.Request, requiredRole string) bool {
+	token := r.Header.Get("Authorization")
+	if token == "" {
+		return false
+	}
+	role, ok := validateSession(token)
+	if !ok {
+		return false
+	}
+	if requiredRole == "admin" && role != "admin" {
+		return false
+	}
+	return true
 }
 
 func handleGetUsers(w http.ResponseWriter, r *http.Request) {
@@ -322,6 +350,11 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 	var req CheckoutReq
 	decodeJSON(r, &req)
 
+	if len(req.Items) == 0 {
+		jsonResponse(w, map[string]string{"error": "Cart kosong"}, 400)
+		return
+	}
+
 	txID := fmt.Sprintf("TX%06d", time.Now().UnixMilli()%1000000)
 	total := 0
 	type checkoutItem struct {
@@ -335,10 +368,13 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 	var items []checkoutItem
 
 	for _, ci := range req.Items {
+		if ci.Qty <= 0 {
+			continue
+		}
 		var p Product
-		err := db.QueryRow("SELECT id,name,price,promo_price,promo_active FROM products WHERE id=? AND active=1", ci.ProductID).
-			Scan(&p.ID, &p.Name, &p.Price, &p.PromoPrice, &p.PromoActive)
-		if err != nil {
+		err := db.QueryRow("SELECT id,name,price,promo_price,promo_active,stock FROM products WHERE id=? AND active=1", ci.ProductID).
+			Scan(&p.ID, &p.Name, &p.Price, &p.PromoPrice, &p.PromoActive, &p.Stock)
+		if err != nil || p.Stock < ci.Qty {
 			continue
 		}
 		effectivePrice := p.Price

@@ -50,21 +50,32 @@ func main() {
 
 	mux := http.NewServeMux()
 
+	// Auth helper: wrap admin-only endpoints
+	adminOnly := func(next http.HandlerFunc) http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) {
+			if !requireAuth(r, "admin") {
+				jsonResponse(w, map[string]string{"error": "Unauthorized"}, 401)
+				return
+			}
+			next(w, r)
+		}
+	}
+
 	// API routes
 	mux.HandleFunc("/api/login", handleLogin)
-	mux.HandleFunc("/api/users", handleGetUsers)
+	mux.HandleFunc("/api/users", adminOnly(handleGetUsers))
 	mux.HandleFunc("/api/products", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "GET" {
 			handleGetProducts(w, r)
 		} else if r.Method == "POST" {
-			handleAddProduct(w, r)
+			adminOnly(handleAddProduct)(w, r)
 		}
 	})
 	mux.HandleFunc("/api/products/", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "PUT" {
-			handleUpdateProduct(w, r)
+			adminOnly(handleUpdateProduct)(w, r)
 		} else if r.Method == "DELETE" {
-			handleDeleteProduct(w, r)
+			adminOnly(handleDeleteProduct)(w, r)
 		}
 	})
 	mux.HandleFunc("/api/categories", handleGetCategories)
@@ -79,11 +90,11 @@ func main() {
 	})
 	mux.HandleFunc("/api/shifts/", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "POST" {
-			handleCloseShift(w, r)
+			adminOnly(handleCloseShift)(w, r)
 		}
 	})
-	mux.HandleFunc("/api/cash/drop", handleCashDrop)
-	mux.HandleFunc("/api/cash/in", handleCashIn)
+	mux.HandleFunc("/api/cash/drop", adminOnly(handleCashDrop))
+	mux.HandleFunc("/api/cash/in", adminOnly(handleCashIn))
 	mux.HandleFunc("/api/cash/log/", handleGetCashLog)
 	mux.HandleFunc("/api/members", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "GET" {
