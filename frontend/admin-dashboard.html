@@ -1,0 +1,184 @@
+<!DOCTYPE html><html lang="id"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>POS Admin</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>tailwind.config={theme:{extend:{colors:{primary:{50:'#eff6ff',100:'#dbeafe',200:'#bfdbfe',300:'#93c5fd',400:'#60a5fa',500:'#3b82f6',600:'#2563eb',700:'#1d4ed8',800:'#1e40af',900:'#1e3a8a'},surface:{50:'#f8fafc',100:'#f1f5f9',200:'#e2e8f0',300:'#cbd5e1',400:'#94a3b8',500:'#64748b',600:'#475569',700:'#334155',800:'#1e293b',900:'#0f172a'}},fontFamily:{heading:['Poppins','sans-serif'],body:['Open Sans','sans-serif']}}}</script>
+</head><body class="bg-surface-100 min-h-screen">
+  <!-- Nav Bar -->
+  <div class="bg-surface-800 text-white px-4 py-1.5 flex justify-between items-center text-xs">
+    <div class="flex items-center gap-3">
+      <a href="/" class="hover:text-primary-400 transition">📊 Dashboard</a>
+      <a href="/kasir" class="hover:text-primary-400 transition">🛒 Kasir</a>
+      <a href="/admin" class="text-primary-400 font-semibold">⚙️ Admin</a>
+      <a href="/customer" target="_blank" class="hover:text-primary-400 transition">📺 Customer</a>
+    </div>
+    <span class="text-surface-400">POS Simulator v2.0</span>
+  </div>
+  <nav class="bg-white shadow px-6 py-3 flex justify-between items-center sticky top-0 z-10">
+  <div class="flex items-center gap-4">
+    <h1 class="text-xl font-bold">⚙️ Admin Panel</h1>
+    <div class="flex gap-1">
+      <button onclick="showTab('products')" id="tab-products" class="px-3 py-1.5 rounded text-xs font-semibold bg-primary-600 text-white">📦 Produk</button>
+      <button onclick="showTab('shifts')" id="tab-shifts" class="px-3 py-1.5 rounded text-xs font-semibold bg-surface-200">📋 Shift</button>
+      <button onclick="showTab('cash')" id="tab-cash" class="px-3 py-1.5 rounded text-xs font-semibold bg-surface-200">💵 Cash</button>
+      <button onclick="showTab('members')" id="tab-members" class="px-3 py-1.5 rounded text-xs font-semibold bg-surface-200">👤 Member</button>
+      <button onclick="showTab('transactions')" id="tab-transactions" class="px-3 py-1.5 rounded text-xs font-semibold bg-surface-200">🧾 Transaksi</button>
+      <button onclick="showTab('daily')" id="tab-daily" class="px-3 py-1.5 rounded text-xs font-semibold bg-surface-200">📊 Harian</button>
+      <button onclick="showTab('stock')" id="tab-stock" class="px-3 py-1.5 rounded text-xs font-semibold bg-surface-200">📦 Stok</button>
+    </div>
+  </div>
+  <a href="/" class="text-primary-600 hover:underline text-sm">← Dashboard</a>
+</nav>
+<div class="max-w-7xl mx-auto p-6">
+
+<!-- PRODUCTS -->
+<div id="panel-products">
+  <div class="flex justify-between items-center mb-4">
+    <h2 class="text-2xl font-bold">📦 Manajemen Produk</h2>
+    <button onclick="showAddProduct()" class="bg-green-600 text-white px-4 py-2 rounded-lg font-semibold text-sm">+ Tambah</button>
+  </div>
+  <div class="bg-white rounded-xl shadow overflow-hidden"><table class="w-full text-sm"><thead class="bg-surface-50"><tr>
+    <th class="px-3 py-2 text-left">SKU</th><th class="px-3 py-2 text-left">Nama</th><th class="px-3 py-2 text-right">Harga</th><th class="px-3 py-2 text-right">Modal</th><th class="px-3 py-2 text-center">Stok</th><th class="px-3 py-2 text-left">Kategori</th><th class="px-3 py-2 text-center">Promo</th><th class="px-3 py-2 text-center">Aksi</th>
+  </tr></thead><tbody id="products-table"></tbody></table></div>
+</div>
+
+<!-- SHIFTS -->
+<div id="panel-shifts" class="hidden">
+  <h2 class="text-2xl font-bold mb-4">📋 Laporan Shift</h2>
+  <div class="grid grid-cols-3 gap-4 mb-4" id="shift-summary"></div>
+  <div class="bg-white rounded-xl shadow overflow-hidden"><table class="w-full text-sm"><thead class="bg-surface-50"><tr>
+    <th class="px-3 py-2 text-left">ID</th><th class="px-3 py-2 text-left">Shift</th><th class="px-3 py-2 text-left">Kasir</th><th class="px-3 py-2 text-right">Opening</th><th class="px-3 py-2 text-right">Cash Sales</th><th class="px-3 py-2 text-right">Expected</th><th class="px-3 py-2 text-right">Closing</th><th class="px-3 py-2 text-right">Disc</th><th class="px-3 py-2 text-center">Status</th>
+  </tr></thead><tbody id="shifts-table"></tbody></table></div>
+</div>
+
+<!-- CASH -->
+<div id="panel-cash" class="hidden">
+  <h2 class="text-2xl font-bold mb-4">💵 Cash Management</h2>
+  <div class="grid grid-cols-4 gap-4 mb-4" id="cash-summary"></div>
+  <div class="bg-white rounded-xl shadow overflow-hidden"><table class="w-full text-sm"><thead class="bg-surface-50"><tr>
+    <th class="px-3 py-2 text-left">Waktu</th><th class="px-3 py-2 text-left">Shift</th><th class="px-3 py-2 text-left">Tipe</th><th class="px-3 py-2 text-right">Jumlah</th><th class="px-3 py-2 text-left">Keterangan</th>
+  </tr></thead><tbody id="cash-table"></tbody></table></div>
+</div>
+
+<!-- MEMBERS -->
+<div id="panel-members" class="hidden">
+  <div class="flex justify-between items-center mb-4">
+    <h2 class="text-2xl font-bold">👤 Member</h2>
+    <button onclick="showAddMember()" class="bg-green-600 text-white px-4 py-2 rounded-lg font-semibold text-sm">+ Tambah</button>
+  </div>
+  <div class="grid grid-cols-3 gap-4 mb-4" id="member-summary"></div>
+  <div class="bg-white rounded-xl shadow overflow-hidden"><table class="w-full text-sm"><thead class="bg-surface-50"><tr>
+    <th class="px-3 py-2 text-left">ID</th><th class="px-3 py-2 text-left">Nama</th><th class="px-3 py-2 text-left">Telepon</th><th class="px-3 py-2 text-center">Poin</th><th class="px-3 py-2 text-center">Tier</th>
+  </tr></thead><tbody id="members-table"></tbody></table></div>
+</div>
+
+<!-- TRANSACTIONS -->
+<div id="panel-transactions" class="hidden">
+  <div class="flex justify-between items-center mb-4">
+    <h2 class="text-2xl font-bold">🧾 Transaksi</h2>
+    <div class="flex gap-2"><input type="date" id="tx-date-filter" class="border rounded-lg px-3 py-2 text-sm" onchange="loadTransactions()"><button onclick="loadTransactions()" class="bg-primary-600 text-white px-4 py-2 rounded-lg text-sm">Filter</button></div>
+  </div>
+  <div class="bg-white rounded-xl shadow overflow-hidden"><table class="w-full text-sm"><thead class="bg-surface-50"><tr>
+    <th class="px-3 py-2 text-left">TX ID</th><th class="px-3 py-2 text-left">Waktu</th><th class="px-3 py-2 text-right">Total</th><th class="px-3 py-2 text-left">Bayar</th><th class="px-3 py-2 text-left">Kasir</th><th class="px-3 py-2 text-center">Status</th><th class="px-3 py-2 text-center">Aksi</th>
+  </tr></thead><tbody id="tx-table"></tbody></table></div>
+</div>
+
+<!-- DAILY REPORT -->
+<div id="panel-daily" class="hidden">
+  <div class="flex justify-between items-center mb-4">
+    <h2 class="text-2xl font-bold">📊 Laporan Harian</h2>
+    <div class="flex gap-2"><input type="date" id="report-date" class="border rounded-lg px-3 py-2 text-sm" onchange="loadDailyReport()"><button onclick="loadDailyReport()" class="bg-primary-600 text-white px-4 py-2 rounded-lg text-sm">Lihat</button></div>
+  </div>
+  <div class="grid grid-cols-4 gap-4 mb-4" id="report-cards"></div>
+  <div class="grid grid-cols-2 gap-4">
+    <div class="bg-white rounded-xl shadow p-4"><h3 class="font-bold mb-2">🏆 Top Items</h3><div id="report-top-items" class="text-sm"></div></div>
+    <div class="bg-white rounded-xl shadow p-4"><h3 class="font-bold mb-2">⏰ Per Jam</h3><div id="report-hourly" class="text-sm"></div></div>
+  </div>
+</div>
+
+<!-- STOCK REPORT -->
+<div id="panel-stock" class="hidden">
+  <h2 class="text-2xl font-bold mb-4">📦 Laporan Stok</h2>
+  <div class="grid grid-cols-3 gap-4 mb-4" id="stock-summary"></div>
+  <div class="bg-white rounded-xl shadow overflow-hidden"><table class="w-full text-sm"><thead class="bg-surface-50"><tr>
+    <th class="px-3 py-2 text-left">SKU</th><th class="px-3 py-2 text-left">Nama</th><th class="px-3 py-2 text-left">Kategori</th><th class="px-3 py-2 text-center">Stok</th><th class="px-3 py-2 text-right">Modal</th><th class="px-3 py-2 text-right">Jual</th><th class="px-3 py-2 text-right">Nilai Stok</th>
+  </tr></thead><tbody id="stock-table"></tbody></table></div>
+</div>
+</div>
+
+<!-- MODALS -->
+<div id="product-modal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50"><div class="bg-white rounded-2xl p-6 w-[480px] max-h-[90vh] overflow-y-auto">
+  <h3 class="text-lg font-bold mb-3" id="product-modal-title">Tambah Produk</h3>
+  <input type="hidden" id="edit-product-id">
+  <div class="space-y-2">
+    <div class="grid grid-cols-2 gap-2"><div><label class="text-xs font-semibold">SKU</label><input id="p-sku" class="w-full border rounded px-2 py-1.5 text-sm"></div><div><label class="text-xs font-semibold">Barcode</label><input id="p-barcode" class="w-full border rounded px-2 py-1.5 text-sm"></div></div>
+    <div><label class="text-xs font-semibold">Nama</label><input id="p-name" class="w-full border rounded px-2 py-1.5 text-sm"></div>
+    <div class="grid grid-cols-2 gap-2"><div><label class="text-xs font-semibold">Harga Jual</label><input id="p-price" type="number" class="w-full border rounded px-2 py-1.5 text-sm"></div><div><label class="text-xs font-semibold">Modal</label><input id="p-cost" type="number" class="w-full border rounded px-2 py-1.5 text-sm"></div></div>
+    <div class="grid grid-cols-3 gap-2"><div><label class="text-xs font-semibold">Kategori</label><select id="p-category" class="w-full border rounded px-2 py-1.5 text-sm"><option>Makanan</option><option>Minuman</option><option>Snack</option><option>Lainnya</option></select></div><div><label class="text-xs font-semibold">Stok</label><input id="p-stock" type="number" class="w-full border rounded px-2 py-1.5 text-sm"></div><div><label class="text-xs font-semibold">Unit</label><input id="p-unit" value="pcs" class="w-full border rounded px-2 py-1.5 text-sm"></div></div>
+    <div class="grid grid-cols-2 gap-2"><div><label class="text-xs font-semibold">Promo Price</label><input id="p-promo-price" type="number" class="w-full border rounded px-2 py-1.5 text-sm"></div><div><label class="text-xs font-semibold">Promo?</label><select id="p-promo-active" class="w-full border rounded px-2 py-1.5 text-sm"><option value="0">Tidak</option><option value="1">Ya</option></select></div></div>
+  </div>
+  <div class="flex gap-2 mt-3"><button onclick="saveProduct()" class="flex-1 bg-primary-600 text-white py-2 rounded-lg font-semibold text-sm">Simpan</button><button onclick="closeModal('product-modal')" class="px-4 bg-surface-200 py-2 rounded-lg text-sm">Batal</button></div>
+</div></div>
+<div id="member-modal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50"><div class="bg-white rounded-2xl p-6 w-80">
+  <h3 class="text-lg font-bold mb-3">Tambah Member</h3>
+  <div class="space-y-2"><div><label class="text-xs">Nama</label><input id="m-name" class="w-full border rounded px-2 py-1.5"></div><div><label class="text-xs">Telepon</label><input id="m-phone" class="w-full border rounded px-2 py-1.5"></div><div><label class="text-xs">Email</label><input id="m-email" class="w-full border rounded px-2 py-1.5"></div></div>
+  <div class="flex gap-2 mt-3"><button onclick="saveMember()" class="flex-1 bg-primary-600 text-white py-2 rounded-lg text-sm">Simpan</button><button onclick="closeModal('member-modal')" class="px-4 bg-surface-200 py-2 rounded-lg text-sm">Batal</button></div>
+</div></div>
+
+<script>
+const API="";
+function showTab(name){['products','shifts','cash','members','transactions','daily','stock'].forEach(t=>{document.getElementById("panel-"+t).classList.toggle("hidden",t!==name);document.getElementById("tab-"+t).className=t===name?"px-3 py-1.5 rounded text-xs font-semibold bg-primary-600 text-white":"px-3 py-1.5 rounded text-xs font-semibold bg-surface-200"});const loaders={products:loadProducts,shifts:loadShifts,cash:loadCash,members:loadMembers,transactions:loadTransactions,daily:loadDailyReport,stock:loadStockReport};if(loaders[name])loaders[name]()}
+function closeModal(id){document.getElementById(id).classList.add("hidden")}
+
+// PRODUCTS
+async function loadProducts(){const p=await(await fetch(API+"/api/products")).json();document.getElementById("products-table").innerHTML=p.map(x=>`<tr class="border-t hover:bg-surface-50"><td class="px-3 py-2 font-mono text-xs">${x.sku}</td><td class="px-3 py-2 font-semibold">${x.name}</td><td class="px-3 py-2 text-right">Rp${x.price.toLocaleString("id-ID")}</td><td class="px-3 py-2 text-right">Rp${x.cost.toLocaleString("id-ID")}</td><td class="px-3 py-2 text-center ${x.stock<10?'text-red-500 font-bold':''}">${x.stock}</td><td class="px-3 py-2">${x.category}</td><td class="px-3 py-2 text-center">${x.promo_active?'<span class="text-red-600 font-semibold text-xs">Rp'+x.promo_price.toLocaleString("id-ID")+'</span>':'-'}</td><td class="px-3 py-2 text-center"><button onclick='editProduct(${JSON.stringify(x).replace(/'/g,"\\'").replace(/"/g,"&quot;")})' class="text-primary-600 text-xs mr-2">Edit</button><button onclick="deleteProduct(${x.id})" class="text-red-500 text-xs">Hapus</button></td></tr>`).join("")}
+function showAddProduct(){document.getElementById("product-modal-title").textContent="Tambah Produk";["p-sku","p-barcode","p-name","p-price","p-cost","p-stock"].forEach(id=>document.getElementById(id).value="");document.getElementById("p-promo-price").value=0;document.getElementById("p-promo-active").value=0;document.getElementById("edit-product-id").value="";document.getElementById("product-modal").classList.remove("hidden")}
+function editProduct(p){document.getElementById("product-modal-title").textContent="Edit Produk";document.getElementById("edit-product-id").value=p.id;document.getElementById("p-sku").value=p.sku;document.getElementById("p-barcode").value=p.barcode;document.getElementById("p-name").value=p.name;document.getElementById("p-price").value=p.price;document.getElementById("p-cost").value=p.cost;document.getElementById("p-category").value=p.category;document.getElementById("p-stock").value=p.stock;document.getElementById("p-unit").value=p.unit;document.getElementById("p-promo-price").value=p.promo_price||0;document.getElementById("p-promo-active").value=p.promo_active?1:0;document.getElementById("product-modal").classList.remove("hidden")}
+async function saveProduct(){const id=document.getElementById("edit-product-id").value;const d={sku:document.getElementById("p-sku").value,name:document.getElementById("p-name").value,price:parseInt(document.getElementById("p-price").value)||0,cost:parseInt(document.getElementById("p-cost").value)||0,category:document.getElementById("p-category").value,stock:parseInt(document.getElementById("p-stock").value)||0,unit:document.getElementById("p-unit").value,barcode:document.getElementById("p-barcode").value,promo_price:parseInt(document.getElementById("p-promo-price").value)||0,promo_active:parseInt(document.getElementById("p-promo-active").value)||0};await fetch(id?API+"/api/products/"+id:API+"/api/products",{method:id?"PUT":"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(d)});closeModal("product-modal");loadProducts()}
+async function deleteProduct(id){if(!confirm("Hapus?"))return;await fetch(API+"/api/products/"+id,{method:"DELETE"});loadProducts()}
+
+// SHIFTS
+async function loadShifts(){const s=await(await fetch(API+"/api/shifts")).json();const open=s.filter(x=>x.status==="open").length;document.getElementById("shift-summary").innerHTML=`<div class="bg-green-50 rounded-xl p-3"><p class="text-xs text-surface-500">Aktif</p><p class="text-2xl font-bold text-green-600">${open}</p></div><div class="bg-blue-50 rounded-xl p-3"><p class="text-xs text-surface-500">Selesai</p><p class="text-2xl font-bold text-primary-600">${s.length-open}</p></div><div class="bg-surface-50 rounded-xl p-3"><p class="text-xs text-surface-500">Total</p><p class="text-2xl font-bold">${s.length}</p></div>`;document.getElementById("shifts-table").innerHTML=s.map(x=>`<tr class="border-t"><td class="px-3 py-2 text-xs">#${x.id}</td><td class="px-3 py-2">${x.shift_name}</td><td class="px-3 py-2">${x.cashier}</td><td class="px-3 py-2 text-right">Rp${(x.opening_cash||0).toLocaleString("id-ID")}</td><td class="px-3 py-2 text-right">Rp${(x.cash_sales||0).toLocaleString("id-ID")}</td><td class="px-3 py-2 text-right">Rp${(x.expected_cash||0).toLocaleString("id-ID")}</td><td class="px-3 py-2 text-right">${x.closing_cash?"Rp"+x.closing_cash.toLocaleString("id-ID"):"-"}</td><td class="px-3 py-2 text-right font-bold ${x.cash_discrepancy===0?'text-green-600':'text-red-600'}">${x.status==='closed'?(x.cash_discrepancy>=0?'+':'')+x.cash_discrepancy.toLocaleString("id-ID"):"-"}</td><td class="px-3 py-2 text-center"><span class="px-2 py-0.5 rounded text-[10px] ${x.status==='open'?'bg-green-100 text-green-700':'bg-surface-100'}">${x.status==='open'?'🟢':'✅'}</span></td></tr>`).join("")}
+
+// CASH
+async function loadCash(){const s=await(await fetch(API+"/api/shifts")).json();let logs=[];for(const sh of s){try{const l=await(await fetch(API+"/api/cash/log/"+sh.id)).json();logs=logs.concat(l)}catch{}}const openings=logs.filter(l=>l.type==="opening").reduce((s,l)=>s+l.amount,0);document.getElementById("cash-summary").innerHTML=`<div class="bg-blue-50 rounded-xl p-3"><p class="text-xs">Total Opening</p><p class="text-xl font-bold">Rp${openings.toLocaleString("id-ID")}</p></div><div class="bg-surface-50 rounded-xl p-3"><p class="text-xs">Total Logs</p><p class="text-xl font-bold">${logs.length}</p></div><div class="bg-surface-50 rounded-xl p-3"><p class="text-xs">Total Shifts</p><p class="text-xl font-bold">${s.length}</p></div><div class="bg-surface-50 rounded-xl p-3"><p class="text-xs">-</p><p class="text-xl font-bold">-</p></div>`;const tc={opening:"bg-primary-100",closing:"bg-green-100",cash_drop:"bg-red-100",cash_in:"bg-yellow-100"};document.getElementById("cash-table").innerHTML=logs.sort((a,b)=>b.id-a.id).map(l=>`<tr class="border-t"><td class="px-3 py-2 text-xs">${l.created_at}</td><td class="px-3 py-2">#${l.shift_id}</td><td class="px-3 py-2"><span class="px-1.5 py-0.5 rounded text-[10px] ${tc[l.type]||'bg-surface-100'}">${l.type}</span></td><td class="px-3 py-2 text-right font-bold">Rp${l.amount.toLocaleString("id-ID")}</td><td class="px-3 py-2 text-xs text-surface-500">${l.description}</td></tr>`).join("")}
+
+// MEMBERS
+async function loadMembers(){const m=await(await fetch(API+"/api/members")).json();document.getElementById("member-summary").innerHTML=`<div class="bg-blue-50 rounded-xl p-3"><p class="text-xs">Total</p><p class="text-2xl font-bold text-primary-600">${m.length}</p></div><div class="bg-yellow-50 rounded-xl p-3"><p class="text-xs">Gold</p><p class="text-2xl font-bold text-yellow-600">${m.filter(x=>x.tier==="gold").length}</p></div><div class="bg-surface-50 rounded-xl p-3"><p class="text-xs">Silver</p><p class="text-2xl font-bold">${m.filter(x=>x.tier==="silver").length}</p></div>`;document.getElementById("members-table").innerHTML=m.map(x=>`<tr class="border-t"><td class="px-3 py-2 font-mono text-xs">${x.member_id}</td><td class="px-3 py-2 font-semibold">${x.name}</td><td class="px-3 py-2">${x.phone||'-'}</td><td class="px-3 py-2 text-center font-bold">${x.points.toLocaleString("id-ID")}</td><td class="px-3 py-2 text-center"><span class="px-1.5 py-0.5 rounded text-[10px] ${x.tier==='gold'?'bg-yellow-100 text-yellow-700':x.tier==='silver'?'bg-surface-100':'bg-primary-100 text-blue-700'}">${x.tier.toUpperCase()}</span></td></tr>`).join("")}
+function showAddMember(){document.getElementById("member-modal").classList.remove("hidden")}
+async function saveMember(){await fetch(API+"/api/members",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:document.getElementById("m-name").value,phone:document.getElementById("m-phone").value,email:document.getElementById("m-email").value})});closeModal("member-modal");loadMembers()}
+
+// TRANSACTIONS
+async function loadTransactions(){const date=document.getElementById("tx-date-filter").value||"";let url=API+"/api/transactions?limit=200";if(date)url+="&date="+date;const txs=await(await fetch(url)).json();document.getElementById("tx-table").innerHTML=txs.map(t=>`<tr class="border-t"><td class="px-3 py-2 font-mono text-xs">${t.tx_id}</td><td class="px-3 py-2 text-xs">${t.created_at}</td><td class="px-3 py-2 text-right font-bold">Rp${t.grand_total.toLocaleString("id-ID")}</td><td class="px-3 py-2"><span class="px-1.5 py-0.5 rounded text-[10px] ${t.payment==='CASH'?'bg-green-100 text-green-700':'bg-purple-100 text-purple-700'}">${t.payment}</span></td><td class="px-3 py-2">${t.cashier}</td><td class="px-3 py-2 text-center"><span class="px-1.5 py-0.5 rounded text-[10px] ${t.status==='completed'?'bg-green-100 text-green-700':'bg-red-100 text-red-700'}">${t.status}</span></td><td class="px-3 py-2 text-center">${t.status==='completed'?`<button onclick="voidTx('${t.tx_id}')" class="text-red-500 text-xs">Void</button>`:'-'}</td></tr>`).join("")}
+async function voidTx(id){if(!confirm("Batalkan "+id+"?"))return;await fetch(API+"/api/transactions/"+id+"/void",{method:"PUT"});loadTransactions()}
+
+// DAILY REPORT
+async function loadDailyReport(){
+  const date=document.getElementById("report-date").value||new Date().toISOString().split("T")[0];
+  const r=await(await fetch(API+"/api/daily-report?date="+date)).json();
+  document.getElementById("report-cards").innerHTML=`
+    <div class="bg-white rounded-xl shadow p-3"><p class="text-xs text-surface-500">Total Sales</p><p class="text-xl font-bold text-green-600">Rp${r.total_sales.toLocaleString("id-ID")}</p></div>
+    <div class="bg-white rounded-xl shadow p-3"><p class="text-xs text-surface-500">Total Transaksi</p><p class="text-xl font-bold text-primary-600">${r.total_tx}</p></div>
+    <div class="bg-white rounded-xl shadow p-3"><p class="text-xs text-surface-500">Profit</p><p class="text-xl font-bold text-purple-600">Rp${r.total_profit.toLocaleString("id-ID")}</p></div>
+    <div class="bg-white rounded-xl shadow p-3"><p class="text-xs text-surface-500">PPN</p><p class="text-xl font-bold text-orange-600">Rp${r.total_tax.toLocaleString("id-ID")}</p></div>`;
+  // Payment breakdown
+  document.getElementById("report-cards").innerHTML+=`
+    <div class="bg-white rounded-xl shadow p-3"><p class="text-xs text-surface-500">💵 Cash</p><p class="text-lg font-bold">Rp${r.cash_sales.toLocaleString("id-ID")}</p></div>
+    <div class="bg-white rounded-xl shadow p-3"><p class="text-xs text-surface-500">⚡ QRIS</p><p class="text-lg font-bold">Rp${r.qris_sales.toLocaleString("id-ID")}</p></div>
+    <div class="bg-white rounded-xl shadow p-3"><p class="text-xs text-surface-500">🏦 Transfer</p><p class="text-lg font-bold">Rp${r.tf_sales.toLocaleString("id-ID")}</p></div>
+    <div class="bg-white rounded-xl shadow p-3"><p class="text-xs text-surface-500">💰 Diskon</p><p class="text-lg font-bold text-red-500">-Rp${(r.total_discount||0).toLocaleString("id-ID")}</p></div>`;
+  document.getElementById("report-top-items").innerHTML=(r.top_items||[]).map((it,i)=>`<div class="flex justify-between py-1 border-b"><span>${i+1}. ${it.name}</span><span class="font-semibold">${it.qty}x | Rp${it.revenue.toLocaleString("id-ID")}</span></div>`).join("")||'<p class="text-surface-400 text-xs">Belum ada data</p>';
+  document.getElementById("report-hourly").innerHTML=(r.hourly||[]).map(h=>`<div class="flex justify-between py-1 border-b"><span>${h.hour}</span><span>${h.tx_count} tx | Rp${h.sales.toLocaleString("id-ID")}</span></div>`).join("")||'<p class="text-surface-400 text-xs">Belum ada data</p>';
+}
+
+// STOCK REPORT
+async function loadStockReport(){
+  const r=await(await fetch(API+"/api/stock-report")).json();
+  const totalItems=r.length;const totalStock=r.reduce((s,p)=>s+p.stock,0);const totalValue=r.reduce((s,p)=>s+(p.stock*p.cost),0);const lowStock=r.filter(p=>p.stock<10).length;
+  document.getElementById("stock-summary").innerHTML=`
+    <div class="bg-white rounded-xl shadow p-3"><p class="text-xs text-surface-500">Total Items</p><p class="text-xl font-bold">${totalItems}</p></div>
+    <div class="bg-white rounded-xl shadow p-3"><p class="text-xs text-surface-500">Total Stok</p><p class="text-xl font-bold">${totalStock}</p></div>
+    <div class="bg-white rounded-xl shadow p-3"><p class="text-xs text-surface-500">Nilai Stok</p><p class="text-xl font-bold">Rp${totalValue.toLocaleString("id-ID")}</p></div>`;
+  document.getElementById("stock-table").innerHTML=r.map(p=>`<tr class="border-t ${p.stock<10?'bg-red-50':''}"><td class="px-3 py-2 font-mono text-xs">${p.sku}</td><td class="px-3 py-2 font-semibold">${p.name}</td><td class="px-3 py-2">${p.category}</td><td class="px-3 py-2 text-center ${p.stock<10?'text-red-500 font-bold':''}">${p.stock}</td><td class="px-3 py-2 text-right">Rp${p.cost.toLocaleString("id-ID")}</td><td class="px-3 py-2 text-right">Rp${p.price.toLocaleString("id-ID")}</td><td class="px-3 py-2 text-right font-semibold">Rp${(p.stock*p.cost).toLocaleString("id-ID")}</td></tr>`).join("");
+}
+
+loadProducts();
+</script></body></html>

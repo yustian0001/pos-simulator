@@ -1,0 +1,136 @@
+<!DOCTYPE html><html lang="id"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>POS Dashboard</title>
+<link rel="manifest" href="/manifest.json"><meta name="theme-color" content="#1e40af">
+<script>if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js')</script>
+<script src="https://cdn.tailwindcss.com"></script><script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap" rel="stylesheet">
+<style>*{font-family:'Inter',sans-serif}::-webkit-scrollbar{width:6px}::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:3px}</style><link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;500;600;700&family=Poppins:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+<style>*{font-family:'Open Sans',sans-serif}h1,h2,h3,h4,.font-heading{font-family:'Poppins',sans-serif}</style>
+</head><body class="bg-surface-100 min-h-screen">
+<!-- NAV -->
+<nav class="bg-white shadow px-6 py-3 flex justify-between items-center sticky top-0 z-20">
+  <div class="flex items-center gap-4">
+    <div class="w-9 h-9 bg-primary-600 rounded-lg flex items-center justify-center"><span class="text-white font-black text-sm">P</span></div>
+    <h1 class="text-lg font-bold">📊 POS Dashboard</h1>
+    <p class="text-[10px] text-surface-400" id="nav-info">--</p>
+  </div>
+  <div class="flex gap-1.5">
+    <a href="/kasir" class="px-3 py-1.5 rounded text-xs font-semibold bg-primary-600 text-white hover:bg-primary-700">🛒 Kasir</a>
+    <a href="/admin" class="px-3 py-1.5 rounded text-xs font-semibold bg-surface-200 hover:bg-surface-300">⚙️ Admin</a>
+    <a href="/customer" target="_blank" class="px-3 py-1.5 rounded text-xs font-semibold bg-surface-200 hover:bg-surface-300">📺 Customer</a>
+    <button onclick="loadAll()" class="px-3 py-1.5 rounded text-xs font-semibold bg-green-100 text-green-700">🔄 Refresh</button>
+  </div>
+</nav>
+<div class="max-w-7xl mx-auto p-4 space-y-4">
+<!-- STATS CARDS -->
+<div class="grid grid-cols-6 gap-3" id="stats-cards"></div>
+<!-- CHART + PAYMENT -->
+<div class="grid grid-cols-3 gap-3">
+  <div class="col-span-2 bg-white rounded-xl shadow p-4"><h3 class="font-bold text-sm mb-2">📈 7 Hari Terakhir</h3><canvas id="salesChart" height="80"></canvas></div>
+  <div class="bg-white rounded-xl shadow p-4"><h3 class="font-bold text-sm mb-2">💳 Metode Bayar</h3><div id="payment-breakdown"></div></div>
+</div>
+<!-- NAVIGATION CARDS -->
+<div class="grid grid-cols-4 gap-3" id="nav-cards"></div>
+<!-- TOP PRODUCTS + RECENT TX -->
+<div class="grid grid-cols-2 gap-3">
+  <div class="bg-white rounded-xl shadow p-4"><h3 class="font-bold text-sm mb-2">🏆 Top Produk Hari Ini</h3><div id="top-products" class="space-y-1"></div></div>
+  <div class="bg-white rounded-xl shadow p-4"><h3 class="font-bold text-sm mb-2">🧾 Transaksi Terakhir</h3><div id="recent-tx" class="space-y-1 max-h-[200px] overflow-y-auto"></div></div>
+</div>
+<!-- ACTIVE SHIFTS + LOW STOCK -->
+<div class="grid grid-cols-2 gap-3">
+  <div class="bg-white rounded-xl shadow p-4"><h3 class="font-bold text-sm mb-2">📋 Shift Aktif</h3><div id="active-shifts"></div></div>
+  <div class="bg-white rounded-xl shadow p-4"><h3 class="font-bold text-sm mb-2">⚠️ Low Stock Alert</h3><div id="low-stock"></div></div>
+</div>
+</div>
+<script>
+let salesChart=null, ws=null;
+const API="";
+
+// Clock
+function updateClock(){const n=new Date();document.getElementById("nav-info").textContent=n.toLocaleDateString("id-ID",{weekday:"long",day:"numeric",month:"long",year:"numeric"})+" | "+n.toLocaleTimeString("id-ID",{hour12:false})}
+setInterval(updateClock,1000);updateClock();
+
+// Load all data
+async function loadAll(){
+  const [stats, trend, payBreakdown, topProducts, recentTx, activeShifts, lowStock] = await Promise.all([
+    fetch(API+"/api/stats").then(r=>r.json()),
+    fetch(API+"/api/sales-trend").then(r=>r.json()).catch(()=>[]),
+    fetch(API+"/api/payment-breakdown").then(r=>r.json()).catch(()=>[]),
+    fetch(API+"/api/stats").then(r=>r.json()).then(s=>s.top_products||[]),
+    fetch(API+"/api/stats").then(r=>r.json()).then(s=>s.recent_tx||[]),
+    fetch(API+"/api/stats").then(r=>r.json()).then(s=>s.active_shifts||[]),
+    fetch(API+"/api/stock-report").then(r=>r.json()).then(p=>p.filter(x=>x.stock<10)),
+  ]);
+
+  // Stats Cards
+  document.getElementById("stats-cards").innerHTML = `
+    <div class="bg-white rounded-xl shadow p-3 border-l-4 border-green-500"><p class="text-[10px] text-surface-500">💰 Sales Hari Ini</p><p class="text-xl font-black text-green-600">Rp${stats.total_sales.toLocaleString("id-ID")}</p></div>
+    <div class="bg-white rounded-xl shadow p-3 border-l-4 border-blue-500"><p class="text-[10px] text-surface-500">🧾 Transaksi</p><p class="text-xl font-black text-primary-600">${stats.total_tx}</p></div>
+    <div class="bg-white rounded-xl shadow p-3 border-l-4 border-purple-500"><p class="text-[10px] text-surface-500">📈 Profit</p><p class="text-xl font-black text-purple-600">Rp${stats.total_profit.toLocaleString("id-ID")}</p></div>
+    <div class="bg-white rounded-xl shadow p-3 border-l-4 ${stats.low_stock>0?'border-red-500':'border-surface-300'}"><p class="text-[10px] text-surface-500">⚠️ Low Stock</p><p class="text-xl font-black ${stats.low_stock>0?'text-red-600':'text-surface-400'}">${stats.low_stock}</p></div>
+    <div class="bg-white rounded-xl shadow p-3 border-l-4 border-yellow-500"><p class="text-[10px] text-surface-500">👤 Members</p><p class="text-xl font-black text-yellow-600">${stats.member_count||0}</p></div>
+    <div class="bg-white rounded-xl shadow p-3 border-l-4 border-indigo-500"><p class="text-[10px] text-surface-500">📋 Shift Aktif</p><p class="text-xl font-black text-indigo-600">${(stats.active_shifts||[]).length}</p></div>`;
+
+  // Sales Chart (7 days)
+  const dates = trend.map(t=>t.date.slice(5));
+  const sales = trend.map(t=>t.sales);
+  const txCounts = trend.map(t=>t.tx_count);
+  if(salesChart) salesChart.destroy();
+  salesChart = new Chart(document.getElementById("salesChart"),{
+    type:"bar",
+    data:{
+      labels: dates,
+      datasets:[
+        {label:"Sales (Rp)",data:sales,backgroundColor:"rgba(59,130,246,0.7)",borderRadius:6,yAxisID:"y"},
+        {label:"Transaksi",data:txCounts,type:"line",borderColor:"#f59e0b",backgroundColor:"#f59e0b",pointRadius:4,borderWidth:2,yAxisID:"y1"}
+      ]
+    },
+    options:{responsive:true,plugins:{legend:{position:"bottom",labels:{boxWidth:12,font:{size:10}}}},scales:{y:{position:"left",beginAtZero:true,ticks:{callback:v=>"Rp"+v.toLocaleString("id-ID"),font:{size:10}}},y1:{position:"right",beginAtZero:true,grid:{drawOnChartArea:false},ticks:{font:{size:10}}},x:{ticks:{font:{size:10}}}}}
+  });
+
+  // Payment Breakdown
+  const payColors={CASH:"#22c55e",QRIS:"#8b5cf6",EDC:"#3b82f6",GOPAY:"#16a34a",OVO:"#7c3aed",TRANSFER:"#6366f1"};
+  document.getElementById("payment-breakdown").innerHTML = payBreakdown.length ?
+    payBreakdown.map(p=>`<div class="flex justify-between items-center py-1.5 border-b"><div class="flex items-center gap-2"><div class="w-3 h-3 rounded" style="background:${payColors[p.method]||"#94a3b8"}"></div><span class="text-xs">${p.method}</span></div><div class="text-right"><span class="text-xs font-semibold">Rp${(p.total||0).toLocaleString("id-ID")}</span><span class="text-[10px] text-surface-400 ml-1">${p.count}x</span></div></div>`).join("")
+    : '<p class="text-surface-400 text-xs">Belum ada data</p>';
+
+  // Top Products
+  document.getElementById("top-products").innerHTML = topProducts.length ?
+    topProducts.map((p,i)=>`<div class="flex justify-between items-center py-1 border-b text-xs"><span>${i+1}. ${p.name}</span><span class="font-semibold">${p.total_qty}x | Rp${(p.total_rev||0).toLocaleString("id-ID")}</span></div>`).join("")
+    : '<p class="text-surface-400 text-xs">Belum ada data</p>';
+
+  // Recent Transactions
+  document.getElementById("recent-tx").innerHTML = recentTx.length ?
+    recentTx.map(t=>`<div class="flex justify-between items-center py-1 border-b text-xs"><div><span class="font-mono text-[10px] text-surface-400">${t.tx_id}</span> <span class="font-semibold">${t.cashier}</span></div><span class="font-semibold ${t.payment==='CASH'?'text-green-600':'text-purple-600'}">Rp${t.grand_total.toLocaleString("id-ID")}</span></div>`).join("")
+    : '<p class="text-surface-400 text-xs">Belum ada transaksi</p>';
+
+  // Active Shifts
+  document.getElementById("active-shifts").innerHTML = activeShifts.length ?
+    activeShifts.map(s=>`<div class="bg-green-50 rounded p-2 mb-1 flex justify-between items-center"><div><p class="font-semibold text-xs">${s.shift_name} — ${s.cashier}</p><p class="text-[10px] text-surface-500">Opening: Rp${(s.opening_cash||0).toLocaleString("id-ID")} | Sales: Rp${(s.total_sales||0).toLocaleString("id-ID")}</p></div><span class="text-green-600 font-bold text-[10px]">🟢 AKTIF</span></div>`).join("")
+    : '<p class="text-surface-400 text-xs">Tidak ada shift aktif</p>';
+
+  // Low Stock
+  document.getElementById("low-stock").innerHTML = lowStock.length ?
+    lowStock.map(p=>`<div class="flex justify-between items-center py-1 border-b text-xs ${p.stock<5?'text-red-600 font-bold':'text-orange-500'}"><span>${p.name}</span><span>Stok: ${p.stock}</span></div>`).join("")
+    : '<p class="text-surface-400 text-xs">Semua stok aman ✅</p>';
+}
+
+// Navigation Cards
+document.getElementById("nav-cards").innerHTML = [
+  {icon:"🛒",title:"Kasir",desc:"Transaksi penjualan",url:"/kasir",color:"bg-primary-600"},
+  {icon:"⚙️",title:"Admin",desc:"Kelola produk + laporan",url:"/admin",color:"bg-surface-700"},
+  {icon:"📺",title:"Customer Display",desc:"Monitor pelanggan",url:"/customer",target:"_blank",color:"bg-green-600"},
+  {icon:"📊",title:"Dashboard Ini",desc:"Stats real-time",url:"/",color:"bg-purple-600"},
+].map(c=>`<a href="${c.url}" target="${c.target||''}" class="${c.color} rounded-xl p-4 text-white hover:opacity-90 transition"><div class="text-2xl mb-1">${c.icon}</div><p class="font-bold text-sm">${c.title}</p><p class="text-[10px] text-white/70">${c.desc}</p></a>`).join("");
+
+// WebSocket for live updates
+function connectWS(){
+  try{ws=new WebSocket("ws://"+location.host+"/ws");
+    ws.onmessage=e=>{const m=JSON.parse(e.data);if(m.type==="new_transaction"||m.type==="shift_open")loadAll()};
+    ws.onclose=()=>setTimeout(connectWS,3000)}catch{}
+}
+connectWS();
+loadAll();
+setInterval(loadAll,30000);
+</script>
+
+</body></html>

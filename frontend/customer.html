@@ -1,0 +1,130 @@
+<!DOCTYPE html><html lang="id"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Customer Display</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>*{font-family:'Segoe UI',system-ui,-apple-system,sans-serif}body{margin:0;height:100vh;overflow:hidden;background:#0f172a}
+@keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}.fade-up{animation:fadeUp .2s ease-out}
+@keyframes slideIn{from{opacity:0;transform:translateX(-20px)}to{opacity:1;transform:translateX(0)}}.slide-in{animation:slideIn .3s ease-out}
+@keyframes pulse-glow{0%,100%{box-shadow:0 0 20px rgba(59,130,246,.3)}50%{box-shadow:0 0 40px rgba(59,130,246,.6)}}.pulse-glow{animation:pulse-glow 2s infinite}
+@keyframes marquee{0%{transform:translateX(100%)}100%{transform:translateX(-100%)}}.marquee{animation:marquee 20s linear infinite}</style>
+</head><body class="flex h-screen">
+<!-- LEFT 50%: Info Pembelian -->
+<div class="w-1/2 flex flex-col bg-gradient-to-b from-slate-900 to-slate-800">
+  <!-- Header -->
+  <div class="bg-slate-800/80 backdrop-blur px-8 py-4 flex justify-between items-center border-b border-slate-700">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center"><span class="text-white font-black">P</span></div>
+      <div><h1 class="text-lg font-bold text-white">POS Simulator</h1><p class="text-slate-400 text-xs">Terima kasih atas kunjungan Anda</p></div>
+    </div>
+    <div class="text-right"><p class="text-lg font-bold text-white tabular-nums" id="clock">--:--:--</p><p class="text-slate-400 text-xs" id="date">--</p></div>
+  </div>
+  <!-- Status -->
+  <div class="px-8 py-3 bg-green-600/20 border-b border-green-500/30 flex items-center gap-2" id="status-bar">
+    <div class="w-2 h-2 bg-green-500 rounded-full pulse-glow"></div>
+    <span class="text-green-400 font-semibold text-sm" id="status-text">Menunggu transaksi...</span>
+    <span class="ml-auto text-green-400 text-xs" id="tx-count">0 transaksi</span>
+  </div>
+  <!-- Items List -->
+  <div class="flex-1 overflow-y-auto px-8 py-4 space-y-2" id="items-list">
+    <div class="text-center py-20"><p class="text-slate-600 text-lg">Menunggu transaksi baru...</p></div>
+  </div>
+  <!-- Total -->
+  <div class="bg-slate-800/80 backdrop-blur px-8 py-5 border-t border-slate-700">
+    <div class="flex justify-between items-end">
+      <div><p class="text-slate-400 text-sm">Total Belanja</p><p class="text-5xl font-black text-white tabular-nums" id="grand-total">Rp 0</p></div>
+      <div class="text-right"><p class="text-slate-400 text-xs" id="payment-badge"></p><p class="text-2xl font-bold text-green-400 tabular-nums" id="running-total">Running: Rp 0</p></div>
+    </div>
+  </div>
+</div>
+<!-- RIGHT 50%: Iklan / Promosi -->
+<div class="w-1/2 flex flex-col bg-gradient-to-br from-blue-900 via-indigo-900 to-purple-900">
+  <!-- Iklan Banner -->
+  <div class="flex-1 flex items-center justify-center p-8">
+    <div class="text-center max-w-md">
+      <div class="w-24 h-24 bg-white/10 rounded-3xl flex items-center justify-center mx-auto mb-6 pulse-glow">
+        <span class="text-5xl">🛍️</span>
+      </div>
+      <h2 class="text-3xl font-black text-white mb-3">Promo Spesial Hari Ini!</h2>
+      <p class="text-blue-200 text-lg mb-6">Dapatkan diskon menarik untuk semua produk pilihan</p>
+      <!-- Promo Cards -->
+      <div class="grid grid-cols-2 gap-3 mb-6">
+        <div class="bg-white/10 backdrop-blur rounded-2xl p-4 border border-white/20">
+          <p class="text-2xl mb-1">🍜</p>
+          <p class="text-white font-bold text-sm">Nasi Goreng</p>
+          <p class="text-yellow-400 font-bold">Rp 22.000</p>
+          <p class="text-slate-400 text-xs line-through">Rp 25.000</p>
+        </div>
+        <div class="bg-white/10 backdrop-blur rounded-2xl p-4 border border-white/20">
+          <p class="text-2xl mb-1">🥤</p>
+          <p class="text-white font-bold text-sm">Es Teh</p>
+          <p class="text-yellow-400 font-bold">Rp 5.000</p>
+          <p class="text-slate-400 text-xs">Harga spesial!</p>
+        </div>
+      </div>
+      <!-- Marquee -->
+      <div class="overflow-hidden bg-white/5 rounded-xl py-2 px-4">
+        <p class="text-blue-300 text-xs whitespace-nowrap marquee">🎉 Promo 17 Agustus! Diskon 17% semua makanan! 🎉 Gratis Es Teh untuk pembelian di atas Rp 50.000! 🎉</p>
+      </div>
+    </div>
+  </div>
+  <!-- Footer -->
+  <div class="text-center py-3 border-t border-white/10">
+    <p class="text-blue-300/50 text-xs">POS Simulator v2.0</p>
+  </div>
+</div>
+<script>
+let allItems=[], runningTotal=0;
+const WS_URL = "ws://"+location.host+"/ws";
+
+function updateClock(){const n=new Date();document.getElementById("clock").textContent=n.toLocaleTimeString("id-ID",{hour12:false});document.getElementById("date").textContent=n.toLocaleDateString("id-ID",{weekday:"long",day:"numeric",month:"long",year:"numeric"})}
+setInterval(updateClock,1000);updateClock();
+
+function connectWS(){
+  try{
+    const ws=new WebSocket(WS_URL);
+    ws.onopen=()=>{document.getElementById("status-text").textContent="Terhubung — Menunggu transaksi..."};
+    ws.onmessage=e=>{
+      const msg=JSON.parse(e.data);
+      if(msg.type==="new_transaction"){handleNewTx(msg.data)}
+    };
+    ws.onclose=()=>{document.getElementById("status-text").textContent="Disconnected...";setTimeout(connectWS,3000)};
+    ws.onerror=()=>{};
+  }catch{}
+}
+
+function handleNewTx(tx){
+  // Add items
+  (tx.items||[]).forEach(item=>{
+    allItems.push(item);
+  });
+  runningTotal=tx.grand_total||0;
+  renderItems(tx);
+}
+
+function renderItems(tx){
+  const el=document.getElementById("items-list");
+  let html='';
+  allItems.forEach((item,i)=>{
+    html+=`<div class="bg-slate-700/50 rounded-xl px-6 py-3 flex justify-between items-center border border-slate-600/50 slide-in" style="animation-delay:${i*50}ms">
+      <div class="flex items-center gap-3"><span class="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold text-sm">${i+1}</span><div><p class="text-white font-semibold">${item.name}</p><p class="text-slate-400 text-xs">${item.qty} x Rp ${item.price.toLocaleString("id-ID")}</p></div></div>
+      <p class="text-white font-bold tabular-nums">Rp ${(item.subtotal||item.price*item.qty).toLocaleString("id-ID")}</p>
+    </div>`;
+  });
+  el.innerHTML=html;
+  el.scrollTop=el.scrollHeight;
+  // Update total
+  document.getElementById("grand-total").textContent="Rp "+(tx.grand_total||0).toLocaleString("id-ID");
+  document.getElementById("running-total").textContent="Running: Rp "+runningTotal.toLocaleString("id-ID");
+  document.getElementById("payment-badge").textContent="💵 "+(tx.payment||"CASH");
+  document.getElementById("tx-count").textContent=allItems.length+" item";
+  // Status
+  document.getElementById("status-bar").className="px-8 py-3 bg-blue-600/20 border-b border-blue-500/30 flex items-center gap-2";
+  document.getElementById("status-text").textContent="Transaksi baru!";
+  setTimeout(()=>{
+    document.getElementById("status-bar").className="px-8 py-3 bg-green-600/20 border-b border-green-500/30 flex items-center gap-2";
+    document.getElementById("status-text").textContent="Menunggu transaksi...";
+  },3000);
+}
+
+connectWS();
+</script></body></html>

@@ -1,0 +1,204 @@
+package main
+
+import (
+	"embed"
+	"fmt"
+	"log"
+	"net/http"
+	"os"
+	"os/exec"
+	"runtime"
+	"time"
+
+	"github.com/gorilla/websocket"
+)
+
+//go:embed frontend/*
+var frontendFS embed.FS
+
+var upgrader = websocket.Upgrader{
+	CheckOrigin: func(r *http.Request) bool { return true },
+}
+
+func handleWebSocket(w http.ResponseWriter, r *http.Request) {
+	conn, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		return
+	}
+	wsMu.Lock()
+	wsClients[conn] = true
+	wsMu.Unlock()
+
+	defer func() {
+		wsMu.Lock()
+		delete(wsClients, conn)
+		wsMu.Unlock()
+		conn.Close()
+	}()
+
+	for {
+		_, _, err := conn.ReadMessage()
+		if err != nil {
+			break
+		}
+	}
+}
+
+func main() {
+	initDB()
+	defer db.Close()
+
+	mux := http.NewServeMux()
+
+	// API routes
+	mux.HandleFunc("/api/login", handleLogin)
+	mux.HandleFunc("/api/users", handleGetUsers)
+	mux.HandleFunc("/api/products", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "GET" {
+			handleGetProducts(w, r)
+		} else if r.Method == "POST" {
+			handleAddProduct(w, r)
+		}
+	})
+	mux.HandleFunc("/api/products/", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "PUT" {
+			handleUpdateProduct(w, r)
+		} else if r.Method == "DELETE" {
+			handleDeleteProduct(w, r)
+		}
+	})
+	mux.HandleFunc("/api/categories", handleGetCategories)
+	mux.HandleFunc("/api/shifts/open", handleOpenShift)
+	mux.HandleFunc("/api/shifts/active", handleGetActiveShifts)
+	mux.HandleFunc("/api/shifts", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "POST" {
+			handleOpenShift(w, r)
+		} else {
+			handleGetShifts(w, r)
+		}
+	})
+	mux.HandleFunc("/api/shifts/", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "POST" {
+			handleCloseShift(w, r)
+		}
+	})
+	mux.HandleFunc("/api/cash/drop", handleCashDrop)
+	mux.HandleFunc("/api/cash/in", handleCashIn)
+	mux.HandleFunc("/api/cash/log/", handleGetCashLog)
+	mux.HandleFunc("/api/members", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "GET" {
+			handleGetMembers(w, r)
+		} else if r.Method == "POST" {
+			handleAddMember(w, r)
+		}
+	})
+	mux.HandleFunc("/api/members/", handleGetMember)
+	mux.HandleFunc("/api/checkout", handleCheckout)
+	mux.HandleFunc("/api/hold", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "GET" {
+			handleGetHolds(w, r)
+		} else if r.Method == "POST" {
+			handleHold(w, r)
+		}
+	})
+	mux.HandleFunc("/api/holds/", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "DELETE" {
+			handleDeleteHold(w, r)
+		}
+	})
+	mux.HandleFunc("/api/transactions", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "GET" {
+			handleGetTransactions(w, r)
+		}
+	})
+	mux.HandleFunc("/api/transactions/", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "PUT" {
+			handleVoidTransaction(w, r)
+		}
+	})
+	mux.HandleFunc("/api/stats", handleGetStats)
+	mux.HandleFunc("/api/sales-trend", handleSalesTrend)
+	mux.HandleFunc("/api/payment-breakdown", handlePaymentBreakdown)
+	mux.HandleFunc("/api/daily-report", handleDailyReport)
+	mux.HandleFunc("/api/stock-report", handleStockReport)
+	mux.HandleFunc("/api/e-voucher", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "GET" {
+			handleGetEVouchers(w, r)
+		} else if r.Method == "POST" {
+			handleEVoucher(w, r)
+		}
+	})
+	mux.HandleFunc("/api/quick-access", handleQuickAccess)
+	mux.HandleFunc("/api/receipt/", handleReceipt)
+	mux.HandleFunc("/ws", handleWebSocket)
+	mux.HandleFunc("/health", handleHealth)
+
+	// Frontend routes (embedded)
+	frontendHandler := func(name string) http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) {
+			data, err := frontendFS.ReadFile("frontend/" + name)
+			if err != nil {
+				http.Error(w, "Not found", 404)
+				return
+			}
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+			w.Header().Set("Pragma", "no-cache")
+			w.Header().Set("Expires", "0")
+			w.Write(data)
+		}
+	}
+
+	mux.HandleFunc("/kasir", frontendHandler("kasir.html"))
+	mux.HandleFunc("/admin", frontendHandler("admin.html"))
+	mux.HandleFunc("/customer", frontendHandler("customer.html"))
+	mux.HandleFunc("/sw.js", func(w http.ResponseWriter, r *http.Request) {
+		data, _ := frontendFS.ReadFile("frontend/sw.js")
+		w.Header().Set("Content-Type", "application/javascript")
+		w.Write(data)
+	})
+	mux.HandleFunc("/manifest.json", func(w http.ResponseWriter, r *http.Request) {
+		data, _ := frontendFS.ReadFile("frontend/manifest.json")
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(data)
+	})
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/" {
+			frontendHandler("index.html")(w, r)
+		} else {
+			http.NotFound(w, r)
+		}
+	})
+	mux.HandleFunc("/receipt", frontendHandler("receipt.html"))
+	mux.HandleFunc("/admin-login", frontendHandler("admin-login.html"))
+	mux.HandleFunc("/admin-dashboard", frontendHandler("admin-dashboard.html"))
+	mux.HandleFunc("/dashboard", frontendHandler("dashboard.html"))
+
+	port := "8070"
+	if p := os.Getenv("PORT"); p != "" {
+		port = p
+	}
+
+	fmt.Printf("[POS] Server starting on http://localhost:%s/\n", port)
+	fmt.Printf("[POS] Data dir: %s\n", getDataDir())
+	fmt.Printf("[POS] Version: 2.0 (Go)\n")
+
+	// Auto-open browser
+	go func() {
+		time.Sleep(2 * time.Second)
+		url := "http://localhost:" + port + "/"
+		// Cache-bust: timestamp ensures fresh content every launch
+		cacheBust := fmt.Sprintf("%d", time.Now().UnixMilli())
+		freshURL := url + "?v=" + cacheBust
+		fmt.Printf("[POS] Opening browser: %s\n", freshURL)
+		if runtime.GOOS == "windows" {
+			exec.Command("cmd", "/c", "start", freshURL).Start()
+		} else if runtime.GOOS == "darwin" {
+			exec.Command("open", freshURL).Start()
+		} else {
+			exec.Command("xdg-open", freshURL).Start()
+		}
+	}()
+
+	log.Fatal(http.ListenAndServe(":"+port, mux))
+}

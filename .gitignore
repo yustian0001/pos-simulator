@@ -1,0 +1,6 @@
+pos.db
+pos.db-shm
+pos.db-wal
+*.exe
+/test/
+/tmp/

@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Struk Belanja</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Courier New',monospace;background:#f5f5f5;display:flex;justify-content:center;padding:20px}
+.receipt{background:#fff;width:320px;padding:20px;box-shadow:0 2px 10px rgba(0,0,0,.1);border:1px dashed #ccc}
+.header{text-align:center;border-bottom:2px dashed #333;padding-bottom:10px;margin-bottom:10px}
+.header h1{font-size:18px;letter-spacing:2px}
+.header p{font-size:11px;color:#666}
+.items{margin:10px 0}
+.item{display:flex;justify-content:space-between;font-size:12px;margin:4px 0}
+.item .name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:8px}
+.item .qty{width:30px;text-align:center}
+.item .price{width:80px;text-align:right}
+.divider{border-top:1px dashed #999;margin:8px 0}
+.summary{font-size:12px}
+.summary .row{display:flex;justify-content:space-between;margin:3px 0}
+.summary .total{font-size:16px;font-weight:bold;border-top:2px dashed #333;padding-top:6px;margin-top:6px}
+.footer{text-align:center;font-size:10px;color:#999;margin-top:15px;border-top:2px dashed #333;padding-top:10px}
+.payment-badge{display:inline-block;background:#2563eb;color:#fff;padding:2px 8px;border-radius:4px;font-size:10px;margin-top:4px}
+.back-btn{display:block;text-align:center;margin-top:15px;padding:8px;background:#333;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-family:inherit}
+.back-btn:hover{background:#555}
+@media print{body{background:#fff;padding:0}.receipt{box-shadow:none;border:none;width:100%}.back-btn{display:none}}
+</style>
+</head>
+<body>
+<div>
+<div class="receipt" id="receipt">
+  <div class="header">
+    <h1>POS SIMULATOR</h1>
+    <p id="receipt-date">--</p>
+  </div>
+  <div class="items" id="receipt-items"></div>
+  <div class="divider"></div>
+  <div class="summary">
+    <div class="row"><span>Subtotal</span><span id="r-subtotal">Rp 0</span></div>
+    <div class="row" id="r-disc-row" style="display:none;color:red"><span>Diskon</span><span id="r-discount">-Rp 0</span></div>
+    <div class="row"><span>PPN 11%</span><span id="r-tax">Rp 0</span></div>
+    <div class="row total"><span>TOTAL</span><span id="r-total">Rp 0</span></div>
+    <div class="row"><span>Bayar</span><span id="r-paid">Rp 0</span></div>
+    <div class="row" id="r-change-row" style="display:none"><span>Kembali</span><span id="r-change">Rp 0</span></div>
+  </div>
+  <div style="text-align:center;margin-top:6px"><span class="payment-badge" id="r-payment">CASH</span></div>
+  <div class="footer">
+    <p>Terima kasih atas kunjungan Anda!</p>
+    <p style="margin-top:4px" id="r-tx-id">--</p>
+  </div>
+</div>
+<button class="back-btn" onclick="window.history.back()">← Kembali ke Kasir</button>
+</div>
+<script>
+const params=new URLSearchParams(location.search);
+const txId=params.get('tx');
+const formatRp=n=>'Rp '+Number(n).toLocaleString('id-ID');
+async function loadReceipt(){
+  if(!txId){document.getElementById('receipt-items').innerHTML='<p style="text-align:center;padding:20px">Struk tidak ditemukan</p>';return}
+  try{
+    const r=await fetch('/api/receipt/'+txId+'/');
+    if(!r.ok){document.getElementById('receipt-items').innerHTML='<p style="text-align:center;padding:20px">Data tidak ditemukan</p>';return}
+    const d=await r.json();
+    document.getElementById('receipt-date').textContent=d.date||'--';
+    document.getElementById('r-tx-id').textContent=d.tx_id;
+    let itemsHtml='';
+    (d.items||[]).forEach(it=>{
+      itemsHtml+=`<div class="item"><span class="name">${it.name}</span><span class="qty">${it.qty}x</span><span class="price">${formatRp(it.subtotal||it.price*it.qty)}</span></div>`;
+    });
+    document.getElementById('receipt-items').innerHTML=itemsHtml;
+    document.getElementById('r-subtotal').textContent=formatRp(d.subtotal||0);
+    document.getElementById('r-tax').textContent=formatRp(d.tax||0);
+    document.getElementById('r-total').textContent=formatRp(d.total||0);
+    document.getElementById('r-paid').textContent=formatRp(d.amount_paid||0);
+    document.getElementById('r-payment').textContent=d.payment||'CASH';
+    if(d.discount>0){document.getElementById('r-disc-row').style.display='flex';document.getElementById('r-discount').textContent='-'+formatRp(d.discount)}
+    if(d.change>0){document.getElementById('r-change-row').style.display='flex';document.getElementById('r-change').textContent=formatRp(d.change)}
+  }catch(e){document.getElementById('receipt-items').innerHTML='<p style="text-align:center;padding:20px">Error loading receipt</p>'}
+}
+loadReceipt();
+</script>
+</body>
+</html>

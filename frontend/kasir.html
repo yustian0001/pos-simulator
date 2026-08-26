@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>POS - Kasir</title>
+</head>
+<body style="display:flex;height:100vh;overflow:hidden;background:#f1f5f9;font-family:system-ui,sans-serif;margin:0">
+<div id="app" style="display:flex;width:100%;height:100%">
+<!-- LEFT -->
+<div style="flex:2;display:flex;flex-direction:column;overflow:hidden">
+  <div style="background:#1e293b;color:#fff;padding:6px 16px;display:flex;justify-content:space-between;font-size:12px">
+    <div><a href="/" style="color:#94a3b8">Dashboard</a> | <b style="color:#60a5fa">Kasir</b> | <a href="/admin" style="color:#94a3b8">Admin</a></div>
+    <span style="color:#94a3b8">POS Simulator v2.1</span>
+  </div>
+  <div style="background:#fff;padding:8px 16px;display:flex;justify-content:space-between;align-items:center;box-shadow:0 1px 3px rgba(0,0,0,.1)">
+    <div style="font-weight:700;font-size:16px">🛒 Kasir</div>
+    <input id="search" placeholder="Cari produk..." style="border:1px solid #cbd5e1;border-radius:8px;padding:6px 12px;font-size:13px;width:250px" oninput="searchProducts()">
+  </div>
+  <div style="flex:1;overflow-y:auto;padding:12px">
+    <div id="products" style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px"></div>
+  </div>
+</div>
+<!-- RIGHT: Cart -->
+<div style="flex:1;background:#fff;display:flex;flex-direction:column;border-left:1px solid #e2e8f0">
+  <div style="background:#1e293b;color:#fff;padding:10px 12px">
+    <b>🛒 Keranjang</b> <span id="cart-count" style="color:#94a3b8;font-size:11px">0 item</span>
+    <button onclick="clearCart()" style="float:right;background:#ef4444;color:#fff;border:none;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:11px">🗑 Clear</button>
+  </div>
+  <div id="cart-items" style="flex:1;overflow-y:auto;padding:8px">
+    <p style="color:#94a3b8;text-align:center;padding:40px;font-size:12px">Keranjang kosong</p>
+  </div>
+  <div style="border-top:1px solid #e2e8f0;padding:12px;background:#f8fafc">
+    <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:2px"><span style="color:#64748b">Subtotal</span><span id="subtotal">Rp 0</span></div>
+    <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:2px"><span style="color:#64748b">PPN 11%</span><span id="tax-display">Rp 0</span></div>
+    <div style="display:flex;justify-content:space-between;font-size:18px;font-weight:900;margin-top:4px;border-top:1px solid #e2e8f0;padding-top:6px"><span>TOTAL</span><span id="cart-total" style="color:#2563eb">Rp 0</span></div>
+  </div>
+  <div style="padding:8px 12px;display:flex;gap:6px">
+    <button onclick="setPayment('CASH')" id="btn-cash" style="flex:1;background:#22c55e;color:#fff;border:none;border-radius:8px;padding:10px;font-weight:700;font-size:11px;cursor:pointer">💵 TUNAI</button>
+    <button onclick="setPayment('QRIS')" id="btn-qris" style="flex:1;background:#a855f7;color:#fff;border:none;border-radius:8px;padding:10px;font-weight:700;font-size:11px;cursor:pointer">⚡ QRIS</button>
+  </div>
+  <div id="cash-row" style="padding:0 12px 8px;display:flex;gap:6px">
+    <input id="amount-paid" type="number" placeholder="Uang diterima" style="flex:1;border:2px solid #93c5fd;border-radius:8px;padding:8px;font-size:16px;font-weight:700" oninput="updateTotal()">
+    <div style="min-width:80px;text-align:right"><div style="font-size:10px;color:#94a3b8">Kembali</div><div id="change" style="font-size:16px;font-weight:700;color:#22c55e">Rp 0</div></div>
+  </div>
+  <div style="padding:0 12px 12px">
+    <button onclick="checkout()" id="btn-pay" style="width:100%;background:#2563eb;color:#fff;border:none;border-radius:12px;padding:14px;font-size:18px;font-weight:700;cursor:pointer" disabled>BAYAR</button>
+  </div>
+</div>
+</div>
+<!-- Payment Modal -->
+<div id="payment-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:50;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:16px;padding:24px;width:380px;text-align:center">
+    <div style="font-size:48px">✅</div>
+    <h2 style="margin:8px 0 4px">Berhasil!</h2>
+    <p id="modal-tx-id" style="color:#64748b;font-size:12px"></p>
+    <p id="modal-total" style="font-size:32px;font-weight:900;color:#2563eb;margin:8px 0"></p>
+    <div id="modal-change-row" style="display:none"><p style="color:#22c55e;font-weight:700">Kembali: <span id="modal-change"></span></p></div>
+    <div style="background:#f8fafc;border-radius:8px;padding:12px;margin:12px 0;font-size:11px;text-align:left;border:1px solid #e2e8f0" id="modal-receipt"></div>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button onclick="printReceipt()" style="flex:1;background:#1e293b;color:#fff;border:none;border-radius:8px;padding:10px;font-weight:600;cursor:pointer">🖨 Print</button>
+      <button onclick="closeModal()" style="flex:1;background:#2563eb;color:#fff;border:none;border-radius:8px;padding:10px;font-weight:600;cursor:pointer">Tutup</button>
+    </div>
+  </div>
+</div>
+<script>
+var cart=[],payment="CASH",currentUser="",currentShiftId=null,activeMember=null,lastTxReceipt=null;
+var API="";
+
+function updateClock(){var n=new Date();document.getElementById("clock")&&(document.getElementById("clock").textContent=n.toLocaleTimeString("id-ID",{hour12:false}))}
+setInterval(updateClock,1000);
+
+async function loadProducts(search){
+  var url=API+"/api/products";
+  if(search)url+="?search="+encodeURIComponent(search);
+  var r=await fetch(url);
+  var products=await r.json();
+  var el=document.getElementById("products");
+  var html="";
+  for(var i=0;i<products.length;i++){
+    var p=products[i];
+    var price=p.promo_active&&p.promo_price>0?p.promo_price:p.price;
+    var emoji={"Makanan":"🍜","Minuman":"🥤","Snack":"🍿"}[p.category]||"📦";
+    html+='<div onclick="addToCart('+p.id+',\''+p.name.replace(/'/g,"\\'")+'\','+price+','+p.stock+')" style="background:#fff;border-radius:12px;padding:12px;cursor:pointer;border:1px solid #e2e8f0;min-height:110px;transition:box-shadow .2s" onmouseover="this.style.boxShadow=\'0 4px 12px rgba(0,0,0,.1)\'" onmouseout="this.style.boxShadow=\'none\'">';
+    html+='<div style="font-size:28px;margin-bottom:6px">'+emoji+'</div>';
+    html+='<div style="font-weight:600;font-size:13px;margin-bottom:4px">'+p.name+'</div>';
+    html+='<div style="font-weight:700;font-size:14px;color:'+(p.promo_active?"#dc2626":"#1e293b")+'">Rp '+p.price.toLocaleString("id-ID")+'</div>';
+    if(p.promo_active)html+='<div style="font-weight:700;font-size:14px;color:#dc2626">Rp '+p.promo_price.toLocaleString("id-ID")+'</div>';
+    html+='<div style="font-size:11px;color:'+(p.stock<10?"#dc2626":"#94a3b8")+'">Stok: '+p.stock+'</div>';
+    html+='</div>';
+  }
+  el.innerHTML=html;
+}
+
+function searchProducts(){loadProducts(document.getElementById("search").value)}
+
+function addToCart(id,name,price,stock){
+  var ex=cart.find(function(i){return i.product_id===id});
+  if(ex){if(ex.qty>=stock){alert("Stok habis!");return}ex.qty++}
+  else{cart.push({product_id:id,name:name,price:price,qty:1,stock:stock})}
+  renderCart();
+}
+function removeFromCart(i){cart.splice(i,1);renderCart()}
+function changeQty(i,d){cart[i].qty+=d;if(cart[i].qty<=0)cart.splice(i,1);renderCart()}
+function clearCart(){cart=[];document.getElementById("amount-paid").value="";renderCart()}
+
+function renderCart(){
+  var el=document.getElementById("cart-items");
+  if(!cart.length){el.innerHTML='<p style="color:#94a3b8;text-align:center;padding:40px;font-size:12px">Keranjang kosong</p>';updateTotal();return}
+  var html="";
+  for(var i=0;i<cart.length;i++){
+    var item=cart[i];
+    html+='<div style="background:#f8fafc;border-radius:10px;padding:8px;margin-bottom:6px;display:flex;align-items:center;gap:8px;border:1px solid #e2e8f0">';
+    html+='<div style="flex:1"><div style="font-weight:600;font-size:13px">'+item.name+'</div><div style="font-size:11px;color:#64748b">Rp '+item.price.toLocaleString("id-ID")+'</div></div>';
+    html+='<div style="display:flex;align-items:center;gap:4px">';
+    html+='<button onclick="changeQty('+i+',-1)" style="width:28px;height:28px;border:none;background:#e2e8f0;border-radius:6px;cursor:pointer;font-weight:700">-</button>';
+    html+='<span style="width:28px;text-align:center;font-weight:700;font-size:13px">'+item.qty+'</span>';
+    html+='<button onclick="changeQty('+i+',1)" style="width:28px;height:28px;border:none;background:#e2e8f0;border-radius:6px;cursor:pointer;font-weight:700">+</button>';
+    html+='</div>';
+    html+='<div style="text-align:right;min-width:80px"><div style="font-weight:700;font-size:13px">Rp '+(item.price*item.qty).toLocaleString("id-ID")+'</div><button onclick="removeFromCart('+i+')" style="border:none;background:none;color:#ef4444;cursor:pointer;font-size:11px">✕</button></div>';
+    html+='</div>';
+  }
+  el.innerHTML=html;
+  updateTotal();
+}
+
+function updateTotal(){
+  var subtotal=cart.reduce(function(s,i){return s+i.price*i.qty},0);
+  var tax=Math.round(subtotal*0.11);
+  var grand=subtotal+tax;
+  var paid=parseInt(document.getElementById("amount-paid").value)||0;
+  var change=Math.max(0,paid-grand);
+  document.getElementById("subtotal").textContent="Rp "+subtotal.toLocaleString("id-ID");
+  document.getElementById("tax-display").textContent="Rp "+tax.toLocaleString("id-ID");
+  document.getElementById("cart-total").textContent="Rp "+grand.toLocaleString("id-ID");
+  document.getElementById("cart-count").textContent=cart.reduce(function(s,i){return s+i.qty},0)+" item";
+  document.getElementById("change").textContent="Rp "+change.toLocaleString("id-ID");
+  document.getElementById("btn-pay").disabled=!cart.length;
+}
+
+function setPayment(method){
+  payment=method;
+  document.getElementById("btn-cash").style.background=method==="CASH"?"#22c55e":"#e2e8f0";
+  document.getElementById("btn-cash").style.color=method==="CASH"?"#fff":"#64748b";
+  document.getElementById("btn-qris").style.background=method==="QRIS"?"#a855f7":"#e2e8f0";
+  document.getElementById("btn-qris").style.color=method==="QRIS"?"#fff":"#64748b";
+  document.getElementById("cash-row").style.display=method==="CASH"?"flex":"none";
+  updateTotal();
+}
+
+async function checkout(){
+  if(!cart.length)return;
+  var paid=payment==="CASH"?(parseInt(document.getElementById("amount-paid").value)||0):0;
+  var items=cart.map(function(i){return{product_id:i.product_id,qty:i.qty,discount:0,notes:""}});
+  var r=await fetch(API+"/api/checkout",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({items:items,payment:payment,discount:0,amount_paid:paid,cashier:currentUser,shift_id:currentShiftId})});
+  var tx=await r.json();
+  showPaymentModal(tx);
+  cart=[];
+  document.getElementById("amount-paid").value="";
+  renderCart();
+  loadProducts();
+}
+
+function showPaymentModal(tx){
+  lastTxReceipt=tx;
+  document.getElementById("modal-tx-id").textContent=tx.id+" | "+tx.time;
+  document.getElementById("modal-total").textContent="Rp "+tx.grand_total.toLocaleString("id-ID");
+  if(payment==="CASH"&&tx.change>0){
+    document.getElementById("modal-change-row").style.display="block";
+    document.getElementById("modal-change").textContent="Rp "+tx.change.toLocaleString("id-ID");
+  }else{
+    document.getElementById("modal-change-row").style.display="none";
+  }
+  var receipt="<p style='font-weight:700;text-align:center'>POS SIMULATOR</p>";
+  receipt+="<p style='text-align:center;color:#94a3b8;font-size:10px'>"+tx.date+" "+tx.time+"</p><hr style='margin:6px 0'>";
+  if(tx.items)tx.items.forEach(function(it){receipt+="<div style='display:flex;justify-content:space-between'><span>"+it.name+" x"+it.qty+"</span><span>Rp "+(it.subtotal||it.price*it.qty).toLocaleString("id-ID")+"</span></div>"});
+  receipt+="<hr style='margin:6px 0'><div style='display:flex;justify-content:space-between;font-weight:700'><span>TOTAL</span><span>Rp "+tx.grand_total.toLocaleString("id-ID")+"</span></div>";
+  document.getElementById("modal-receipt").innerHTML=receipt;
+  document.getElementById("payment-modal").style.display="flex";
+}
+
+function closeModal(){document.getElementById("payment-modal").style.display="none"}
+
+function printReceipt(){if(!lastTxReceipt)return;window.open("/receipt?tx="+lastTxReceipt.id,"_blank","width=400,height=600")}
+
+loadProducts();
+</script>
+</body>
+</html>

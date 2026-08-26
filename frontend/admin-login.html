@@ -1,0 +1,29 @@
+<!DOCTYPE html><html lang="id"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Admin Login</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+<style>*{font-family:'Poppins',sans-serif}body{margin:0;min-height:100vh;background:linear-gradient(135deg,#0f172a 0%,#1e293b 50%,#1d4ed8 100%);display:flex;align-items:center;justify-content:center}</style>
+</head>
+<body>
+<div class="bg-white rounded-3xl p-10 w-96 shadow-2xl text-center">
+  <a href="/" class="text-slate-400 text-sm hover:text-white mb-6 inline-block">← Kembali</a>
+  <div class="w-16 h-16 bg-red-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg"><svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg></div>
+  <h2 class="text-2xl font-bold mb-1">Admin Login</h2>
+  <p class="text-slate-500 text-sm mb-6">Masukkan kredensial admin</p>
+  <form onsubmit="doLogin(event)">
+    <input id="username" type="text" placeholder="Username" class="w-full border-2 border-slate-200 rounded-xl px-4 py-3 mb-3 focus:border-red-500 focus:ring-2 focus:ring-red-500 outline-none" required>
+    <input id="password" type="password" placeholder="Password" class="w-full border-2 border-slate-200 rounded-xl px-4 py-3 mb-4 focus:border-red-500 focus:ring-2 focus:ring-red-500 outline-none" required>
+    <button type="submit" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded-xl text-lg transition">Masuk</button>
+  </form>
+  <p id="error" class="text-red-500 text-sm mt-3 hidden"></p>
+</div>
+<script>
+async function doLogin(e){
+  e.preventDefault();
+  const r=await fetch("/api/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username:document.getElementById("username").value,password:document.getElementById("password").value})});
+  const d=await r.json();
+  if(d.status==="ok"&&d.role==="admin"){sessionStorage.setItem("admin","1");window.location.href="/admin-dashboard"}
+  else{document.getElementById("error").textContent="Username atau password salah";document.getElementById("error").classList.remove("hidden")}
+}
+</script></body></html>

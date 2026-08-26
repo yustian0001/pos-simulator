@@ -1,0 +1,801 @@
+package main
+
+import (
+	"database/sql"
+	"encoding/json"
+	"fmt"
+	"math"
+	"net/http"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/gorilla/websocket"
+)
+
+var (
+	wsClients = make(map[*websocket.Conn]bool)
+	wsMu      sync.Mutex
+)
+
+type WSMessage struct {
+	Type string      `json:"type"`
+	Data interface{} `json:"data"`
+}
+
+func wsBroadcast(msg WSMessage) {
+	wsMu.Lock()
+	defer wsMu.Unlock()
+	data, _ := json.Marshal(msg)
+	for client := range wsClients {
+		if err := client.WriteMessage(websocket.TextMessage, data); err != nil {
+			client.Close()
+			delete(wsClients, client)
+		}
+	}
+}
+
+func jsonResponse(w http.ResponseWriter, data interface{}, status int) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	json.NewEncoder(w).Encode(data)
+}
+
+func decodeJSON(r *http.Request, v interface{}) error {
+	return json.NewDecoder(r.Body).Decode(v)
+}
+
+func parseID(path string) int {
+	parts := strings.Split(path, "/")
+	for _, p := range parts {
+		if id, err := strconv.Atoi(p); err == nil {
+			return id
+		}
+	}
+	return 0
+}
+
+// === Auth ===
+func handleLogin(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Username string `json:"username"`
+		Password string `json:"password"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		jsonResponse(w, map[string]string{"status": "error", "message": "Invalid request"}, 400)
+		return
+	}
+	var user User
+	err := db.QueryRow("SELECT id,username,password,display_name,role FROM users WHERE username=? AND password=? AND active=1",
+		req.Username, req.Password).Scan(&user.ID, &user.Username, &user.Password, &user.DisplayName, &user.Role)
+	if err != nil {
+		jsonResponse(w, map[string]string{"status": "error", "message": "Username atau password salah"}, 401)
+		return
+	}
+	jsonResponse(w, map[string]string{"status": "ok", "username": user.Username, "display_name": user.DisplayName, "role": user.Role}, 200)
+}
+
+func handleGetUsers(w http.ResponseWriter, r *http.Request) {
+	rows, _ := db.Query("SELECT id,username,display_name,role,active FROM users")
+	defer rows.Close()
+	var users []map[string]interface{}
+	for rows.Next() {
+		var id, active int
+		var username, display, role string
+		rows.Scan(&id, &username, &display, &role, &active)
+		users = append(users, map[string]interface{}{"id": id, "username": username, "display_name": display, "role": role, "active": active})
+	}
+	jsonResponse(w, users, 200)
+}
+
+// === Products ===
+func handleGetProducts(w http.ResponseWriter, r *http.Request) {
+	q := "SELECT id,sku,name,price,cost,category,stock,unit,barcode,promo_price,promo_active,active FROM products WHERE active=1"
+	var args []interface{}
+	if cat := r.URL.Query().Get("category"); cat != "" && cat != "Semua" {
+		q += " AND category=?"
+		args = append(args, cat)
+	}
+	if search := r.URL.Query().Get("search"); search != "" {
+		q += " AND (name LIKE ? OR barcode LIKE ? OR sku LIKE ?)"
+		s := "%" + search + "%"
+		args = append(args, s, s, s)
+	}
+	rows, _ := db.Query(q, args...)
+	defer rows.Close()
+	var products []Product
+	for rows.Next() {
+		var p Product
+		rows.Scan(&p.ID, &p.SKU, &p.Name, &p.Price, &p.Cost, &p.Category, &p.Stock, &p.Unit, &p.Barcode, &p.PromoPrice, &p.PromoActive, &p.Active)
+		products = append(products, p)
+	}
+	if products == nil {
+		products = []Product{}
+	}
+	jsonResponse(w, products, 200)
+}
+
+func handleGetCategories(w http.ResponseWriter, r *http.Request) {
+	rows, _ := db.Query("SELECT id,name,icon FROM categories ORDER BY name")
+	defer rows.Close()
+	var cats []map[string]interface{}
+	for rows.Next() {
+		var id int
+		var name, icon string
+		rows.Scan(&id, &name, &icon)
+		cats = append(cats, map[string]interface{}{"id": id, "name": name, "icon": icon})
+	}
+	jsonResponse(w, cats, 200)
+}
+
+func handleAddProduct(w http.ResponseWriter, r *http.Request) {
+	var p Product
+	decodeJSON(r, &p)
+	db.Exec("INSERT INTO products (sku,name,price,cost,category,stock,unit,barcode) VALUES (?,?,?,?,?,?,?,?)",
+		p.SKU, p.Name, p.Price, p.Cost, p.Category, p.Stock, p.Unit, p.Barcode)
+	jsonResponse(w, map[string]string{"status": "ok"}, 200)
+}
+
+func handleUpdateProduct(w http.ResponseWriter, r *http.Request) {
+	id := parseID(r.URL.Path)
+	var p Product
+	decodeJSON(r, &p)
+	db.Exec("UPDATE products SET name=?,price=?,cost=?,category=?,stock=?,unit=?,barcode=?,promo_price=?,promo_active=? WHERE id=?",
+		p.Name, p.Price, p.Cost, p.Category, p.Stock, p.Unit, p.Barcode, p.PromoPrice, p.PromoActive, id)
+	jsonResponse(w, map[string]string{"status": "ok"}, 200)
+}
+
+func handleDeleteProduct(w http.ResponseWriter, r *http.Request) {
+	id := parseID(r.URL.Path)
+	db.Exec("UPDATE products SET active=0 WHERE id=?", id)
+	jsonResponse(w, map[string]string{"status": "ok"}, 200)
+}
+
+// === Shifts ===
+func handleOpenShift(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Cashier     string `json:"cashier"`
+		ShiftName   string `json:"shift_name"`
+		OpeningCash int    `json:"opening_cash"`
+	}
+	decodeJSON(r, &req)
+	if req.OpeningCash == 0 {
+		req.OpeningCash = 500000
+	}
+	res, _ := db.Exec("INSERT INTO shifts (shift_name,cashier,opening_cash,status) VALUES (?,?,?,?)",
+		req.ShiftName, req.Cashier, req.OpeningCash, "open")
+	sid, _ := res.LastInsertId()
+	db.Exec("INSERT INTO cash_log (shift_id,type,amount,description) VALUES (?,?,?,?)",
+		sid, "opening", req.OpeningCash, fmt.Sprintf("Opening cash shift %s", req.ShiftName))
+	jsonResponse(w, map[string]interface{}{"status": "ok", "shift_id": sid, "opening_cash": req.OpeningCash}, 200)
+}
+
+func handleGetShifts(w http.ResponseWriter, r *http.Request) {
+	status := r.URL.Query().Get("status")
+	var rows *sql.Rows
+	if status != "" {
+		rows, _ = db.Query("SELECT id,shift_name,cashier,opened_at,closed_at,opening_cash,closing_cash,expected_cash,cash_sales,cash_out,cash_discrepancy,total_sales,total_tx,status FROM shifts WHERE status=? ORDER BY opened_at DESC", status)
+	} else {
+		rows, _ = db.Query("SELECT id,shift_name,cashier,opened_at,closed_at,opening_cash,closing_cash,expected_cash,cash_sales,cash_out,cash_discrepancy,total_sales,total_tx,status FROM shifts ORDER BY opened_at DESC LIMIT 50")
+	}
+	defer rows.Close()
+	var shifts []Shift
+	for rows.Next() {
+		var s Shift
+		rows.Scan(&s.ID, &s.ShiftName, &s.Cashier, &s.OpenedAt, &s.ClosedAt, &s.OpeningCash, &s.ClosingCash, &s.ExpectedCash, &s.CashSales, &s.CashOut, &s.Discrepancy, &s.TotalSales, &s.TotalTx, &s.Status)
+		shifts = append(shifts, s)
+	}
+	jsonResponse(w, shifts, 200)
+}
+
+func handleGetActiveShifts(w http.ResponseWriter, r *http.Request) {
+	rows, _ := db.Query("SELECT id,shift_name,cashier,opened_at,closed_at,opening_cash,closing_cash,expected_cash,cash_sales,cash_out,cash_discrepancy,total_sales,total_tx,status FROM shifts WHERE status='open'")
+	defer rows.Close()
+	var shifts []Shift
+	for rows.Next() {
+		var s Shift
+		rows.Scan(&s.ID, &s.ShiftName, &s.Cashier, &s.OpenedAt, &s.ClosedAt, &s.OpeningCash, &s.ClosingCash, &s.ExpectedCash, &s.CashSales, &s.CashOut, &s.Discrepancy, &s.TotalSales, &s.TotalTx, &s.Status)
+		shifts = append(shifts, s)
+	}
+	jsonResponse(w, shifts, 200)
+}
+
+func handleCloseShift(w http.ResponseWriter, r *http.Request) {
+	id := parseID(r.URL.Path)
+	var req struct {
+		ClosingCash int `json:"closing_cash"`
+	}
+	decodeJSON(r, &req)
+
+	var shift Shift
+	err := db.QueryRow("SELECT id,opening_cash,shift_name FROM shifts WHERE id=?", id).
+		Scan(&shift.ID, &shift.OpeningCash, &shift.ShiftName)
+	if err != nil {
+		jsonResponse(w, map[string]string{"error": "Shift not found"}, 404)
+		return
+	}
+
+	var cashSales, cashOut, totalSales int
+	var totalTx int
+	db.QueryRow("SELECT COALESCE(SUM(grand_total),0) FROM transactions WHERE shift_id=? AND payment='CASH' AND status='completed'", id).Scan(&cashSales)
+	db.QueryRow("SELECT COALESCE(SUM(amount),0) FROM cash_log WHERE shift_id=? AND type='cash_out'", id).Scan(&cashOut)
+	db.QueryRow("SELECT COALESCE(SUM(grand_total),0), COUNT(*) FROM transactions WHERE shift_id=? AND status='completed'", id).Scan(&totalSales, &totalTx)
+
+	expected := shift.OpeningCash + cashSales - cashOut
+	discrepancy := req.ClosingCash - expected
+
+	db.Exec("UPDATE shifts SET closed_at=?,closing_cash=?,expected_cash=?,cash_sales=?,cash_out=?,cash_discrepancy=?,total_sales=?,total_tx=?,status='closed' WHERE id=?",
+		now(), req.ClosingCash, expected, cashSales, cashOut, discrepancy, totalSales, totalTx, id)
+	db.Exec("INSERT INTO cash_log (shift_id,type,amount,description) VALUES (?,?,?,?)",
+		id, "closing", req.ClosingCash, fmt.Sprintf("Closing cash shift %s", shift.ShiftName))
+
+	jsonResponse(w, map[string]interface{}{"status": "ok", "expected": expected, "closing": req.ClosingCash, "discrepancy": discrepancy}, 200)
+}
+
+// === Cash ===
+func handleCashDrop(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		ShiftID     int    `json:"shift_id"`
+		Amount      int    `json:"amount"`
+		Description string `json:"description"`
+	}
+	decodeJSON(r, &req)
+	if req.Description == "" {
+		req.Description = "Cash drop ke bank"
+	}
+	db.Exec("INSERT INTO cash_log (shift_id,type,amount,description) VALUES (?,?,?,?)", req.ShiftID, "cash_drop", req.Amount, req.Description)
+	jsonResponse(w, map[string]string{"status": "ok"}, 200)
+}
+
+func handleCashIn(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		ShiftID     int    `json:"shift_id"`
+		Amount      int    `json:"amount"`
+		Description string `json:"description"`
+	}
+	decodeJSON(r, &req)
+	db.Exec("INSERT INTO cash_log (shift_id,type,amount,description) VALUES (?,?,?,?)", req.ShiftID, "cash_in", req.Amount, req.Description)
+	jsonResponse(w, map[string]string{"status": "ok"}, 200)
+}
+
+func handleGetCashLog(w http.ResponseWriter, r *http.Request) {
+	id := parseID(r.URL.Path)
+	rows, _ := db.Query("SELECT id,shift_id,type,amount,description,created_at FROM cash_log WHERE shift_id=? ORDER BY created_at", id)
+	defer rows.Close()
+	var logs []CashLog
+	for rows.Next() {
+		var l CashLog
+		rows.Scan(&l.ID, &l.ShiftID, &l.Type, &l.Amount, &l.Description, &l.CreatedAt)
+		logs = append(logs, l)
+	}
+	jsonResponse(w, logs, 200)
+}
+
+// === Members ===
+func handleGetMembers(w http.ResponseWriter, r *http.Request) {
+	search := r.URL.Query().Get("search")
+	var rows *sql.Rows
+	if search != "" {
+		s := "%" + search + "%"
+		rows, _ = db.Query("SELECT id,member_id,name,phone,email,points,tier,active FROM members WHERE active=1 AND (name LIKE ? OR phone LIKE ? OR member_id LIKE ?)", s, s, s)
+	} else {
+		rows, _ = db.Query("SELECT id,member_id,name,phone,email,points,tier,active FROM members WHERE active=1 ORDER BY name")
+	}
+	defer rows.Close()
+	var members []Member
+	for rows.Next() {
+		var m Member
+		rows.Scan(&m.ID, &m.MemberID, &m.Name, &m.Phone, &m.Email, &m.Points, &m.Tier, &m.Active)
+		members = append(members, m)
+	}
+	jsonResponse(w, members, 200)
+}
+
+func handleAddMember(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Name  string `json:"name"`
+		Phone string `json:"phone"`
+		Email string `json:"email"`
+	}
+	decodeJSON(r, &req)
+	mid := fmt.Sprintf("MEM%06d", time.Now().UnixMilli()%1000000)
+	db.Exec("INSERT INTO members (member_id,name,phone,email) VALUES (?,?,?,?)", mid, req.Name, req.Phone, req.Email)
+	jsonResponse(w, map[string]string{"status": "ok", "member_id": mid}, 200)
+}
+
+func handleGetMember(w http.ResponseWriter, r *http.Request) {
+	parts := strings.Split(r.URL.Path, "/")
+	mid := parts[len(parts)-1]
+	var m Member
+	err := db.QueryRow("SELECT id,member_id,name,phone,email,points,tier FROM members WHERE member_id=?", mid).
+		Scan(&m.ID, &m.MemberID, &m.Name, &m.Phone, &m.Email, &m.Points, &m.Tier)
+	if err != nil {
+		jsonResponse(w, map[string]string{"error": "Member not found"}, 404)
+		return
+	}
+	jsonResponse(w, m, 200)
+}
+
+// === Checkout ===
+func handleCheckout(w http.ResponseWriter, r *http.Request) {
+	var req CheckoutReq
+	decodeJSON(r, &req)
+
+	txID := fmt.Sprintf("TX%06d", time.Now().UnixMilli()%1000000)
+	total := 0
+	type checkoutItem struct {
+		Name     string `json:"name"`
+		Qty      int    `json:"qty"`
+		Price    int    `json:"price"`
+		Discount int    `json:"discount"`
+		Subtotal int    `json:"subtotal"`
+		Notes    string `json:"notes"`
+	}
+	var items []checkoutItem
+
+	for _, ci := range req.Items {
+		var p Product
+		err := db.QueryRow("SELECT id,name,price,promo_price,promo_active FROM products WHERE id=? AND active=1", ci.ProductID).
+			Scan(&p.ID, &p.Name, &p.Price, &p.PromoPrice, &p.PromoActive)
+		if err != nil {
+			continue
+		}
+		effectivePrice := p.Price
+		if p.PromoActive == 1 && p.PromoPrice > 0 {
+			effectivePrice = p.PromoPrice
+		}
+		sub := (effectivePrice - ci.Discount) * ci.Qty
+		total += sub
+		items = append(items, checkoutItem{Name: p.Name, Qty: ci.Qty, Price: effectivePrice, Discount: ci.Discount, Subtotal: sub, Notes: ci.Notes})
+		db.Exec("INSERT INTO tx_items (tx_id,product_id,name,qty,price,discount,subtotal,notes) VALUES (?,?,?,?,?,?,?,?)",
+			txID, ci.ProductID, p.Name, ci.Qty, effectivePrice, ci.Discount, sub, ci.Notes)
+		db.Exec("UPDATE products SET stock=stock-? WHERE id=?", ci.Qty, ci.ProductID)
+	}
+
+	discount := req.Discount
+	tax := int(math.Round(float64(total-discount) * 0.11))
+	grandTotal := total - discount + tax
+	amountPaid := req.AmountPaid
+	if amountPaid == 0 {
+		amountPaid = grandTotal
+	}
+	change := amountPaid - grandTotal
+	if change < 0 {
+		change = 0
+	}
+
+	db.Exec("INSERT INTO transactions (tx_id,shift_id,total,discount,tax,grand_total,payment,amount_paid,change_amount,customer_name,member_id,cashier,notes) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+		txID, nullInt(req.ShiftID), total, discount, tax, grandTotal, req.Payment, amountPaid, change,
+		req.CustomerName, nullStr(req.MemberID), req.Cashier, req.Notes)
+
+	if req.ShiftID > 0 {
+		db.Exec("UPDATE shifts SET total_sales=total_sales+?, total_tx=total_tx+1 WHERE id=?", grandTotal, req.ShiftID)
+	}
+	if req.MemberID != "" {
+		db.Exec("UPDATE members SET points=points+? WHERE member_id=?", grandTotal/1000, req.MemberID)
+	}
+
+	txData := map[string]interface{}{
+		"id": txID, "total": total, "discount": discount, "tax": tax,
+		"grand_total": grandTotal, "payment": req.Payment,
+		"amount_paid": amountPaid, "change": change, "items": items,
+		"customer": req.CustomerName, "cashier": req.Cashier, "shift_id": req.ShiftID,
+		"time": time.Now().Format("15:04:05"), "date": time.Now().Format("2006-01-02"),
+	}
+
+	wsBroadcast(WSMessage{Type: "new_transaction", Data: txData})
+	jsonResponse(w, txData, 200)
+}
+
+func nullInt(v int) interface{} {
+	if v == 0 {
+		return nil
+	}
+	return v
+}
+
+func nullStr(v string) interface{} {
+	if v == "" {
+		return nil
+	}
+	return v
+}
+
+// === Hold ===
+func handleHold(w http.ResponseWriter, r *http.Request) {
+	var req HoldReq
+	decodeJSON(r, &req)
+	holdID := fmt.Sprintf("H%05d", time.Now().UnixMilli()%100000)
+	db.Exec("INSERT INTO holds (hold_id,items_json,customer_name) VALUES (?,?,?)", holdID, string(req.Items), req.CustomerName)
+	jsonResponse(w, map[string]string{"status": "ok", "hold_id": holdID}, 200)
+}
+
+func handleGetHolds(w http.ResponseWriter, r *http.Request) {
+	rows, _ := db.Query("SELECT id,hold_id,items_json,customer_name,created_at FROM holds ORDER BY created_at DESC")
+	defer rows.Close()
+	var holds []map[string]interface{}
+	for rows.Next() {
+		var id int
+		var holdID, itemsJSON, cust, created string
+		rows.Scan(&id, &holdID, &itemsJSON, &cust, &created)
+		var items interface{}
+		json.Unmarshal([]byte(itemsJSON), &items)
+		holds = append(holds, map[string]interface{}{"id": id, "hold_id": holdID, "items": items, "customer_name": cust, "created_at": created})
+	}
+	jsonResponse(w, holds, 200)
+}
+
+func handleDeleteHold(w http.ResponseWriter, r *http.Request) {
+	id := parseID(r.URL.Path)
+	db.Exec("DELETE FROM holds WHERE id=?", id)
+	jsonResponse(w, map[string]string{"status": "ok"}, 200)
+}
+
+// === Transactions ===
+func handleGetTransactions(w http.ResponseWriter, r *http.Request) {
+	limit := 100
+	if l := r.URL.Query().Get("limit"); l != "" {
+		if v, err := strconv.Atoi(l); err == nil {
+			limit = v
+		}
+	}
+	q := "SELECT id,tx_id,shift_id,total,discount,tax,grand_total,payment,amount_paid,change_amount,customer_name,cashier,notes,status,created_at FROM transactions WHERE 1=1"
+	var args []interface{}
+	if date := r.URL.Query().Get("date"); date != "" {
+		q += " AND created_at LIKE ?"
+		args = append(args, date+"%")
+	}
+	q += " ORDER BY created_at DESC LIMIT ?"
+	args = append(args, limit)
+
+	rows, _ := db.Query(q, args...)
+	defer rows.Close()
+	var txs []map[string]interface{}
+	for rows.Next() {
+		var t Transaction
+		rows.Scan(&t.ID, &t.TxID, &t.ShiftID, &t.Total, &t.Discount, &t.Tax, &t.GrandTotal, &t.Payment, &t.AmountPaid, &t.ChangeAmt, &t.Customer, &t.Cashier, &t.Notes, &t.Status, &t.CreatedAt)
+		itemRows, _ := db.Query("SELECT id,tx_id,product_id,name,qty,price,discount,subtotal,notes FROM tx_items WHERE tx_id=?", t.TxID)
+		var items []TxItem
+		for itemRows.Next() {
+			var it TxItem
+			itemRows.Scan(&it.ID, &it.TxID, &it.ProductID, &it.Name, &it.Qty, &it.Price, &it.Discount, &it.Subtotal, &it.Notes)
+			items = append(items, it)
+		}
+		itemRows.Close()
+		txMap := map[string]interface{}{
+			"id": t.ID, "tx_id": t.TxID, "shift_id": t.ShiftID, "total": t.Total,
+			"discount": t.Discount, "tax": t.Tax, "grand_total": t.GrandTotal,
+			"payment": t.Payment, "cashier": t.Cashier, "status": t.Status,
+			"created_at": t.CreatedAt, "items": items,
+		}
+		txs = append(txs, txMap)
+	}
+	jsonResponse(w, txs, 200)
+}
+
+func handleVoidTransaction(w http.ResponseWriter, r *http.Request) {
+	// URL: /api/transactions/{tx_id}/void — extract tx_id (3rd segment)
+	parts := strings.Split(r.URL.Path, "/")
+	txID := parts[len(parts)-2]
+
+	// Restore stock
+	fmt.Printf("[VOID] Restoring stock for tx_id=%s\n", txID)
+	itemRows, qerr := db.Query("SELECT product_id,qty FROM tx_items WHERE tx_id=?", txID)
+	if qerr != nil {
+		fmt.Printf("[VOID] Query error: %v\n", qerr)
+	} else {
+		for itemRows.Next() {
+			var pid, qty int
+			itemRows.Scan(&pid, &qty)
+			fmt.Printf("[VOID] Updating product %d: stock+%d\n", pid, qty)
+			_, e := db.Exec("UPDATE products SET stock=stock+? WHERE id=?", qty, pid)
+			if e != nil {
+				fmt.Printf("[VOID] Exec error: %v\n", e)
+			} else {
+				fmt.Printf("[VOID] Exec OK\n")
+			}
+		}
+		itemRows.Close()
+	}
+
+	// Update shift
+	var grandTotal int
+	var shiftID *int
+	db.QueryRow("SELECT grand_total,shift_id FROM transactions WHERE tx_id=?", txID).Scan(&grandTotal, &shiftID)
+	if shiftID != nil {
+		db.Exec("UPDATE shifts SET total_sales=total_sales-?, total_tx=total_tx-1 WHERE id=?", grandTotal, *shiftID)
+	}
+
+	// Mark voided
+	db.Exec("UPDATE transactions SET status='voided' WHERE tx_id=?", txID)
+
+	jsonResponse(w, map[string]string{"status": "ok"}, 200)
+}
+
+// === Stats ===
+func handleGetStats(w http.ResponseWriter, r *http.Request) {
+	today := time.Now().Format("2006-01-02")
+	todayPattern := today + "%"
+
+	var totalSales, totalTx, totalProfit, lowStock, memberCount int
+	db.QueryRow("SELECT COALESCE(SUM(grand_total),0) FROM transactions WHERE created_at LIKE ? AND status='completed'", todayPattern).Scan(&totalSales)
+	db.QueryRow("SELECT COUNT(*) FROM transactions WHERE created_at LIKE ? AND status='completed'", todayPattern).Scan(&totalTx)
+	db.QueryRow("SELECT COALESCE(SUM(ti.subtotal - p.cost * ti.qty),0) FROM tx_items ti JOIN products p ON ti.product_id=p.id JOIN transactions t ON ti.tx_id=t.tx_id WHERE t.created_at LIKE ? AND t.status='completed'", todayPattern).Scan(&totalProfit)
+	db.QueryRow("SELECT COUNT(*) FROM products WHERE active=1 AND stock<10").Scan(&lowStock)
+	db.QueryRow("SELECT COUNT(*) FROM members WHERE active=1").Scan(&memberCount)
+
+	type topProd struct {
+		Name      string `json:"name"`
+		TotalQty  int    `json:"total_qty"`
+		TotalRev  int    `json:"total_rev"`
+	}
+	tpRows, _ := db.Query("SELECT p.name, SUM(ti.qty), SUM(ti.subtotal) FROM tx_items ti JOIN products p ON ti.product_id=p.id JOIN transactions t ON ti.tx_id=t.tx_id WHERE t.created_at LIKE ? AND t.status='completed' GROUP BY p.name ORDER BY SUM(ti.qty) DESC LIMIT 5", todayPattern)
+	defer tpRows.Close()
+	var topProducts []topProd
+	for tpRows.Next() {
+		var tp topProd
+		tpRows.Scan(&tp.Name, &tp.TotalQty, &tp.TotalRev)
+		topProducts = append(topProducts, tp)
+	}
+
+	type recentTx struct {
+		TxID      string `json:"tx_id"`
+		GrandTotal int   `json:"grand_total"`
+		Payment   string `json:"payment"`
+		Cashier   string `json:"cashier"`
+		CreatedAt string `json:"created_at"`
+	}
+	rtRows, _ := db.Query("SELECT tx_id,grand_total,payment,cashier,created_at FROM transactions WHERE status='completed' ORDER BY created_at DESC LIMIT 10")
+	defer rtRows.Close()
+	var recentTxs []recentTx
+	for rtRows.Next() {
+		var rt recentTx
+		rtRows.Scan(&rt.TxID, &rt.GrandTotal, &rt.Payment, &rt.Cashier, &rt.CreatedAt)
+		recentTxs = append(recentTxs, rt)
+	}
+
+	aRows, _ := db.Query("SELECT id,shift_name,cashier,opening_cash,total_sales FROM shifts WHERE status='open'")
+	defer aRows.Close()
+	var activeShifts []Shift
+	for aRows.Next() {
+		var s Shift
+		aRows.Scan(&s.ID, &s.ShiftName, &s.Cashier, &s.OpeningCash, &s.TotalSales)
+		activeShifts = append(activeShifts, s)
+	}
+
+	jsonResponse(w, map[string]interface{}{
+		"total_sales": totalSales, "total_tx": totalTx, "total_profit": totalProfit,
+		"low_stock": lowStock, "member_count": memberCount,
+		"top_products": topProducts, "recent_tx": recentTxs, "active_shifts": activeShifts,
+	}, 200)
+}
+
+func handleHealth(w http.ResponseWriter, r *http.Request) {
+	jsonResponse(w, map[string]string{"status": "ok", "service": "pos-server-go", "version": "2.0"}, 200)
+}
+
+
+// === E-Voucher ===
+type EVoucherReq struct {
+	Type    string `json:"type"`    // pulsa, data, pln
+	Product string `json:"product"` // operator/nominal
+	Number  string `json:"number"`  // nomor tujuan
+	Amount  int    `json:"amount"`
+	Cashier string `json:"cashier"`
+	ShiftID int    `json:"shift_id"`
+}
+
+func handleEVoucher(w http.ResponseWriter, r *http.Request) {
+	var req EVoucherReq
+	decodeJSON(r, &req)
+
+	txID := fmt.Sprintf("EV%06d", time.Now().UnixMilli()%1000000)
+	adminFee := 1500
+	total := req.Amount + adminFee
+
+	db.Exec("INSERT INTO transactions (tx_id,shift_id,total,discount,tax,grand_total,payment,amount_paid,change_amount,customer_name,cashier,notes) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+		txID, nullInt(req.ShiftID), total, 0, 0, total, "CASH", total, 0,
+		req.Number, req.Cashier, fmt.Sprintf("E-Voucher %s %s", req.Type, req.Product))
+
+	if req.ShiftID > 0 {
+		db.Exec("UPDATE shifts SET total_sales=total_sales+?, total_tx=total_tx+1 WHERE id=?", total, req.ShiftID)
+	}
+
+	txData := map[string]interface{}{
+		"id": txID, "total": total, "grand_total": total,
+		"payment": "CASH", "items": []map[string]interface{}{
+			{"name": fmt.Sprintf("%s %s", req.Type, req.Product), "qty": 1, "price": req.Amount, "subtotal": req.Amount},
+			{"name": "Admin Fee", "qty": 1, "price": adminFee, "subtotal": adminFee},
+		},
+		"time": time.Now().Format("15:04:05"), "date": time.Now().Format("2006-01-02"),
+	}
+	wsBroadcast(WSMessage{Type: "new_transaction", Data: txData})
+	jsonResponse(w, txData, 200)
+}
+
+func handleGetEVouchers(w http.ResponseWriter, r *http.Request) {
+	vouchers := []map[string]interface{}{
+		{"type": "pulsa", "product": "Telkomsel 5K", "amount": 5000, "category": "Pulsa"},
+		{"type": "pulsa", "product": "Telkomsel 10K", "amount": 10000, "category": "Pulsa"},
+		{"type": "pulsa", "product": "Telkomsel 25K", "amount": 25000, "category": "Pulsa"},
+		{"type": "pulsa", "product": "Indosat 5K", "amount": 5000, "category": "Pulsa"},
+		{"type": "pulsa", "product": "Indosat 10K", "amount": 10000, "category": "Pulsa"},
+		{"type": "pulsa", "product": "XL 5K", "amount": 5000, "category": "Pulsa"},
+		{"type": "pulsa", "product": "XL 10K", "amount": 10000, "category": "Pulsa"},
+		{"type": "data", "product": "Telkomsel 1GB", "amount": 15000, "category": "Data"},
+		{"type": "data", "product": "Telkomsel 3GB", "amount": 35000, "category": "Data"},
+		{"type": "data", "product": "Indosat 1GB", "amount": 10000, "category": "Data"},
+		{"type": "data", "product": "XL 1GB", "amount": 12000, "category": "Data"},
+		{"type": "pln", "product": "Token 20K", "amount": 20000, "category": "PLN"},
+		{"type": "pln", "product": "Token 50K", "amount": 50000, "category": "PLN"},
+		{"type": "pln", "product": "Token 100K", "amount": 100000, "category": "PLN"},
+		{"type": "pln", "product": "Token 200K", "amount": 200000, "category": "PLN"},
+	}
+	jsonResponse(w, vouchers, 200)
+}
+
+// === Receipt ===
+func handleReceipt(w http.ResponseWriter, r *http.Request) {
+	parts := strings.Split(r.URL.Path, "/")
+	txID := parts[len(parts)-2]
+
+	var t Transaction
+	db.QueryRow("SELECT tx_id,total,discount,tax,grand_total,payment,amount_paid,change_amount,customer_name,cashier,created_at FROM transactions WHERE tx_id=?", txID).
+		Scan(&t.TxID, &t.Total, &t.Discount, &t.Tax, &t.GrandTotal, &t.Payment, &t.AmountPaid, &t.ChangeAmt, &t.Customer, &t.Cashier, &t.CreatedAt)
+
+	rows, _ := db.Query("SELECT name,qty,price,discount,subtotal FROM tx_items WHERE tx_id=?", txID)
+	defer rows.Close()
+	var items []TxItem
+	for rows.Next() {
+		var it TxItem
+		rows.Scan(&it.Name, &it.Qty, &it.Price, &it.Discount, &it.Subtotal)
+		items = append(items, it)
+	}
+
+	receipt := map[string]interface{}{
+		"store_name": "POS Simulator", "address": "Indonesia",
+		"tx_id": t.TxID, "date": t.CreatedAt, "cashier": t.Cashier,
+		"items": items, "subtotal": t.Total, "discount": t.Discount,
+		"tax": t.Tax, "total": t.GrandTotal, "payment": t.Payment,
+		"amount_paid": t.AmountPaid, "change": t.ChangeAmt,
+		"footer": "Terima kasih atas kunjungan Anda!",
+	}
+	jsonResponse(w, receipt, 200)
+}
+
+// === Quick Access (top selling products) ===
+func handleQuickAccess(w http.ResponseWriter, r *http.Request) {
+	rows, _ := db.Query(`
+		SELECT p.id, p.name, p.price, p.promo_price, p.promo_active, p.stock, p.category,
+			COALESCE(SUM(ti.qty),0) as total_sold
+		FROM products p LEFT JOIN tx_items ti ON p.id = ti.product_id
+		WHERE p.active=1 AND p.stock>0
+		GROUP BY p.id ORDER BY total_sold DESC LIMIT 12
+	`)
+	defer rows.Close()
+	var products []map[string]interface{}
+	for rows.Next() {
+		var id, price, promoPrice, promoActive, stock, totalSold int
+		var name, category string
+		rows.Scan(&id, &name, &price, &promoPrice, &promoActive, &stock, &category, &totalSold)
+		effective := price
+		if promoActive == 1 && promoPrice > 0 { effective = promoPrice }
+		products = append(products, map[string]interface{}{
+			"id": id, "name": name, "price": price, "effective_price": effective,
+			"stock": stock, "category": category, "total_sold": totalSold,
+		})
+	}
+	jsonResponse(w, products, 200)
+}
+
+// === Daily Report ===
+func handleDailyReport(w http.ResponseWriter, r *http.Request) {
+	date := r.URL.Query().Get("date")
+	if date == "" { date = time.Now().Format("2006-01-02") }
+	pattern := date + "%"
+
+	var totalSales, totalTx, cashSales, qrisSales, tfSales, totalProfit, totalDiscount, totalTax int
+	db.QueryRow("SELECT COALESCE(SUM(grand_total),0), COUNT(*) FROM transactions WHERE created_at LIKE ? AND status='completed'", pattern).Scan(&totalSales, &totalTx)
+	db.QueryRow("SELECT COALESCE(SUM(grand_total),0) FROM transactions WHERE created_at LIKE ? AND payment='CASH' AND status='completed'", pattern).Scan(&cashSales)
+	db.QueryRow("SELECT COALESCE(SUM(grand_total),0) FROM transactions WHERE created_at LIKE ? AND payment='QRIS' AND status='completed'", pattern).Scan(&qrisSales)
+	db.QueryRow("SELECT COALESCE(SUM(grand_total),0) FROM transactions WHERE created_at LIKE ? AND payment='TRANSFER' AND status='completed'", pattern).Scan(&tfSales)
+	db.QueryRow("SELECT COALESCE(SUM(ti.subtotal - p.cost * ti.qty),0) FROM tx_items ti JOIN products p ON ti.product_id=p.id JOIN transactions t ON ti.tx_id=t.tx_id WHERE t.created_at LIKE ? AND t.status='completed'", pattern).Scan(&totalProfit)
+	db.QueryRow("SELECT COALESCE(SUM(discount),0) FROM transactions WHERE created_at LIKE ? AND status='completed'", pattern).Scan(&totalDiscount)
+	db.QueryRow("SELECT COALESCE(SUM(tax),0) FROM transactions WHERE created_at LIKE ? AND status='completed'", pattern).Scan(&totalTax)
+
+	// Top items
+	type itemReport struct { Name string `json:"name"`; Qty int `json:"qty"`; Revenue int `json:"revenue"` }
+	irRows, _ := db.Query("SELECT p.name, SUM(ti.qty), SUM(ti.subtotal) FROM tx_items ti JOIN products p ON ti.product_id=p.id JOIN transactions t ON ti.tx_id=t.tx_id WHERE t.created_at LIKE ? AND t.status='completed' GROUP BY p.name ORDER BY SUM(ti.qty) DESC LIMIT 10", pattern)
+	defer irRows.Close()
+	var topItems []itemReport
+	for irRows.Next() {
+		var ir itemReport
+		irRows.Scan(&ir.Name, &ir.Qty, &ir.Revenue)
+		topItems = append(topItems, ir)
+	}
+
+	// Hourly breakdown
+	type hourlyReport struct { Hour string `json:"hour"`; TxCount int `json:"tx_count"`; Sales int `json:"sales"` }
+	hrRows, _ := db.Query("SELECT strftime('%H:00', created_at), COUNT(*), SUM(grand_total) FROM transactions WHERE created_at LIKE ? AND status='completed' GROUP BY strftime('%H:00', created_at) ORDER BY strftime('%H:00', created_at)", pattern)
+	defer hrRows.Close()
+	var hourly []hourlyReport
+	for hrRows.Next() {
+		var hr hourlyReport
+		hrRows.Scan(&hr.Hour, &hr.TxCount, &hr.Sales)
+		hourly = append(hourly, hr)
+	}
+
+	// Low stock
+	type lowStockItem struct { Name string `json:"name"`; Stock int `json:"stock"` }
+	lsRows, _ := db.Query("SELECT name, stock FROM products WHERE active=1 AND stock<10 ORDER BY stock ASC")
+	defer lsRows.Close()
+	var lowStock []lowStockItem
+	for lsRows.Next() {
+		var ls lowStockItem
+		lsRows.Scan(&ls.Name, &ls.Stock)
+		lowStock = append(lowStock, ls)
+	}
+
+	jsonResponse(w, map[string]interface{}{
+		"date": date, "total_sales": totalSales, "total_tx": totalTx,
+		"cash_sales": cashSales, "qris_sales": qrisSales, "tf_sales": tfSales,
+		"total_profit": totalProfit, "total_discount": totalDiscount, "total_tax": totalTax,
+		"top_items": topItems, "hourly": hourly, "low_stock": lowStock,
+	}, 200)
+}
+
+// === Stock Report ===
+func handleStockReport(w http.ResponseWriter, r *http.Request) {
+	rows, _ := db.Query("SELECT id,sku,name,category,stock,cost,price,unit FROM products WHERE active=1 ORDER BY category, name")
+	defer rows.Close()
+	var products []Product
+	for rows.Next() {
+		var p Product
+		rows.Scan(&p.ID, &p.SKU, &p.Name, &p.Category, &p.Stock, &p.Cost, &p.Price, &p.Unit)
+		products = append(products, p)
+	}
+	jsonResponse(w, products, 200)
+}
+
+
+// === Sales Trend (7 days) ===
+func handleSalesTrend(w http.ResponseWriter, r *http.Request) {
+	rows, _ := db.Query(`
+		SELECT DATE(created_at) as date, SUM(grand_total) as total, COUNT(*) as tx_count
+		FROM transactions WHERE status='completed' AND created_at >= date('now','-7 days')
+		GROUP BY DATE(created_at) ORDER BY date
+	`)
+	defer rows.Close()
+	type TrendPoint struct {
+		Date    string `json:"date"`
+		Sales   int    `json:"sales"`
+		TxCount int    `json:"tx_count"`
+	}
+	var trend []TrendPoint
+	for rows.Next() {
+		var tp TrendPoint
+		rows.Scan(&tp.Date, &tp.Sales, &tp.TxCount)
+		trend = append(trend, tp)
+	}
+	jsonResponse(w, trend, 200)
+}
+
+// === Payment Breakdown ===
+func handlePaymentBreakdown(w http.ResponseWriter, r *http.Request) {
+	today := time.Now().Format("2006-01-02") + "%"
+	type PayMethod struct {
+		Method string `json:"method"`
+		Count  int    `json:"count"`
+		Total  int    `json:"total"`
+	}
+	rows, _ := db.Query("SELECT payment, COUNT(*), SUM(grand_total) FROM transactions WHERE created_at LIKE ? AND status='completed' GROUP BY payment", today)
+	defer rows.Close()
+	var breakdown []PayMethod
+	for rows.Next() {
+		var pm PayMethod
+		rows.Scan(&pm.Method, &pm.Count, &pm.Total)
+		breakdown = append(breakdown, pm)
+	}
+	jsonResponse(w, breakdown, 200)
+}
