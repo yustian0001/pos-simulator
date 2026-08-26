@@ -4,3 +4,4 @@ pos.db-wal
 *.exe
 /test/
 /tmp/
+pos-server
