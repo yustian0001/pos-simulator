@@ -110,8 +110,7 @@
     <div id="modal-change-row" style="display:none"><p style="color:#22c55e;font-weight:700">Kembali: <span id="modal-change"></span></p></div>
     <div style="background:#f8fafc;border-radius:8px;padding:12px;margin:12px 0;font-size:11px;text-align:left;border:1px solid #e2e8f0" id="modal-receipt"></div>
     <div style="display:flex;gap:8px;margin-top:12px">
-      <button onclick="printReceipt()" style="flex:1;background:#1e293b;color:#fff;border:none;border-radius:8px;padding:10px;font-weight:600;cursor:pointer">🖨 Print</button>
-      <button onclick="closePaymentModal()" style="flex:1;background:#2563eb;color:#fff;border:none;border-radius:8px;padding:10px;font-weight:600;cursor:pointer">Tutup</button>
+      <button onclick="printReceipt()" style="width:100%;background:#1e293b;color:#fff;border:none;border-radius:8px;padding:10px;font-weight:600;cursor:pointer">🖨 Print & Tutup</button>
     </div>
   </div>
 </div>
@@ -317,7 +316,13 @@ function showPaymentModal(tx){
 }
 
 function closePaymentModal(){document.getElementById("payment-modal").style.display="none"}
-function printReceipt(){if(!lastTxReceipt)return;window.open("/receipt?tx="+lastTxReceipt.id,"_blank","width=400,height=600")}
+function printReceipt(){
+  closePaymentModal();
+  // Reset customer display
+  fetch(API+"/api/ws-broadcast",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({type:"reset_display",data:{}})}).catch(function(){});
+  if(!lastTxReceipt)return;
+  window.open("/receipt?tx="+lastTxReceipt.id,"_blank","width=400,height=600");
+}
 
 // === KEYBOARD SHORTCUTS ===
 document.addEventListener("keydown",function(e){
