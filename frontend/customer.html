@@ -2,60 +2,70 @@
 <html lang="id">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<meta name="viewport" content="width=1920,height=1080,initial-scale=1.0">
 <title>Customer Display</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;font-family:system-ui,-apple-system,sans-serif}
-body{height:100vh;overflow:hidden;background:#0f172a;display:flex}
-@keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+html,body{width:1920px;height:1080px;overflow:hidden}
+body{display:flex;background:#1a0a0a}
 @keyframes slideIn{from{opacity:0;transform:translateX(-20px)}to{opacity:1;transform:translateX(0)}}
-@keyframes pulseGlow{0%,100%{box-shadow:0 0 20px rgba(59,130,246,.3)}50%{box-shadow:0 0 40px rgba(59,130,246,.6)}}
+@keyframes pulseGlow{0%,100%{box-shadow:0 0 20px rgba(220,38,38,.3)}50%{box-shadow:0 0 40px rgba(220,38,38,.6)}}
 @keyframes marquee{0%{transform:translateX(100%)}100%{transform:translateX(-100%)}}
+@keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
 .slide-in{animation:slideIn .3s ease-out}
 .pulse-glow{animation:pulseGlow 2s infinite}
-.marquee{animation:marquee 20s linear infinite}
-/* LEFT: Iklan (70%) */
-.left{width:70%;display:flex;flex-direction:column;background:linear-gradient(135deg,#1e3a8a,#312e81,#581c87)}
+.marquee{animation:marquee 25s linear infinite}
+/* LEFT: Iklan (70%) — Red & Gold */
+.left{width:70%;display:flex;flex-direction:column;background:linear-gradient(135deg,#7f1d1d 0%,#991b1b 30%,#b91c1c 60%,#dc2626 100%);position:relative;overflow:hidden}
+.left::before{content:"";position:absolute;inset:0;background:radial-gradient(ellipse at 30% 50%,rgba(250,204,21,.15) 0%,transparent 60%);pointer-events:none}
+.left::after{content:"";position:absolute;inset:0;background:radial-gradient(ellipse at 70% 80%,rgba(250,204,21,.1) 0%,transparent 50%);pointer-events:none}
 /* RIGHT: Transaksi (30%) */
-.right{width:30%;display:flex;flex-direction:column;background:linear-gradient(to bottom,#0f172a,#1e293b);border-left:1px solid #334155}
-.r-header{background:rgba(30,41,59,.8);padding:12px 16px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #334155}
-.r-header h2{font-size:14px;font-weight:700;color:#fff}
-.r-clock{font-size:14px;font-weight:700;color:#fff;font-variant-numeric:tabular-nums}
-.r-status{padding:8px 16px;font-size:11px;display:flex;align-items:center;gap:6px}
-.r-status .dot{width:6px;height:6px;border-radius:50%}
-.r-items{flex:1;overflow-y:auto;padding:8px 12px}
+.right{width:30%;display:flex;flex-direction:column;background:linear-gradient(to bottom,#1c1917,#292524);border-left:2px solid rgba(250,204,21,.3)}
+.r-header{background:rgba(28,25,23,.9);padding:16px 20px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid rgba(250,204,21,.2)}
+.r-header h2{font-size:16px;font-weight:700;color:#fef3c7}
+.r-clock{font-size:16px;font-weight:700;color:#fbbf24;font-variant-numeric:tabular-nums}
+.r-status{padding:10px 20px;font-size:12px;display:flex;align-items:center;gap:8px;border-bottom:1px solid rgba(255,255,255,.05)}
+.r-status .dot{width:8px;height:8px;border-radius:50%}
+.r-items{flex:1;overflow-y:auto;padding:12px 16px}
 .r-items::-webkit-scrollbar{width:3px}
-.r-items::-webkit-scrollbar-thumb{background:#475569;border-radius:2px}
-.r-total{background:rgba(30,41,59,.8);padding:12px 16px;border-top:1px solid #334155}
-.r-total-label{color:#94a3b8;font-size:10px}
-.r-total-amount{font-size:24px;font-weight:900;color:#fff;font-variant-numeric:tabular-nums}
-.r-total-sub{font-size:11px;color:#94a3b8;margin-top:2px}
+.r-items::-webkit-scrollbar-thumb{background:#78716c;border-radius:2px}
+.r-total{background:rgba(28,25,23,.9);padding:16px 20px;border-top:2px solid rgba(250,204,21,.3)}
+.r-total-label{color:#a8a29e;font-size:12px}
+.r-total-amount{font-size:32px;font-weight:900;color:#fbbf24;font-variant-numeric:tabular-nums}
+.r-total-sub{font-size:12px;color:#a8a29e;margin-top:4px}
 /* Ad area */
-.ad-area{flex:1;display:flex;align-items:center;justify-content:center;padding:32px}
-.ad-content{text-align:center;max-width:500px}
-.ad-icon{width:80px;height:80px;background:rgba(255,255,255,.1);border-radius:20px;display:flex;align-items:center;justify-content:center;margin:0 auto 20px;font-size:40px}
-.ad-title{font-size:28px;font-weight:900;color:#fff;margin-bottom:8px}
-.ad-desc{color:#bfdbfe;font-size:14px;margin-bottom:20px}
-.ad-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px}
-.ad-card{background:rgba(255,255,255,.1);backdrop-filter:blur(8px);border-radius:14px;padding:14px;border:1px solid rgba(255,255,255,.2)}
-.ad-card .emoji{font-size:22px;margin-bottom:2px}
-.ad-card .name{color:#fff;font-weight:700;font-size:13px}
-.ad-card .price{color:#facc15;font-weight:700;font-size:13px}
-.ad-card .old{color:#94a3b8;font-size:11px;text-decoration:line-through}
-.marquee-bar{overflow:hidden;background:rgba(255,255,255,.05);border-radius:8px;padding:6px 12px}
-.marquee-text{color:#93c5fd;font-size:11px;white-space:nowrap}
-.item-row{background:rgba(51,65,85,.5);border-radius:8px;padding:6px 10px;display:flex;justify-content:space-between;align-items:center;border:1px solid rgba(71,85,105,.5);margin-bottom:4px;font-size:11px}
-.item-num{width:20px;height:20px;background:#2563eb;border-radius:5px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:10px;flex-shrink:0}
-.item-info{flex:1;margin-left:6px}
-.item-name{color:#fff;font-weight:600;font-size:11px}
-.item-qty{color:#94a3b8;font-size:9px}
-.item-price{color:#fff;font-weight:700;font-variant-numeric:tabular-nums;font-size:11px}
-.footer{text-align:center;padding:6px;border-top:1px solid rgba(255,255,255,.1)}
-.footer p{color:rgba(147,197,253,.3);font-size:10px}
+.ad-area{flex:1;display:flex;align-items:center;justify-content:center;padding:40px;position:relative;z-index:1}
+.ad-content{text-align:center;max-width:600px}
+.ad-icon{width:100px;height:100px;background:linear-gradient(135deg,rgba(250,204,21,.2),rgba(250,204,21,.05));border:2px solid rgba(250,204,21,.3);border-radius:24px;display:flex;align-items:center;justify-content:center;margin:0 auto 24px;font-size:48px}
+.ad-title{font-size:36px;font-weight:900;color:#fef3c7;margin-bottom:10px;text-shadow:0 2px 8px rgba(0,0,0,.3)}
+.ad-desc{color:#fde68a;font-size:16px;margin-bottom:28px;opacity:.9}
+.ad-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:28px}
+.ad-card{background:rgba(250,204,21,.1);backdrop-filter:blur(8px);border-radius:16px;padding:18px;border:1px solid rgba(250,204,21,.25);transition:transform .2s}
+.ad-card:hover{transform:scale(1.03)}
+.ad-card .emoji{font-size:28px;margin-bottom:4px}
+.ad-card .name{color:#fef3c7;font-weight:700;font-size:15px}
+.ad-card .price{color:#fbbf24;font-weight:700;font-size:15px}
+.ad-card .old{color:#a8a29e;font-size:12px;text-decoration:line-through}
+.marquee-bar{overflow:hidden;background:rgba(250,204,21,.08);border:1px solid rgba(250,204,21,.15);border-radius:10px;padding:8px 16px}
+.marquee-text{color:#fde68a;font-size:13px;white-space:nowrap}
+/* Item rows */
+.item-row{background:rgba(41,37,36,.8);border-radius:10px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;border:1px solid rgba(120,113,108,.3);margin-bottom:6px;transition:border-color .2s}
+.item-row:hover{border-color:rgba(250,204,21,.4)}
+.item-num{width:24px;height:24px;background:linear-gradient(135deg,#dc2626,#b91c1c);border-radius:6px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:11px;flex-shrink:0}
+.item-info{flex:1;margin-left:10px}
+.item-name{color:#fef3c7;font-weight:600;font-size:13px}
+.item-qty{color:#a8a29e;font-size:11px}
+.item-price{color:#fbbf24;font-weight:700;font-variant-numeric:tabular-nums;font-size:13px}
+/* Close button */
+.close-bar{padding:12px 16px;border-top:1px solid rgba(250,204,21,.2);display:none}
+.close-btn{width:100%;background:linear-gradient(135deg,#dc2626,#b91c1c);color:#fef3c7;border:none;border-radius:10px;padding:12px;font-size:14px;font-weight:700;cursor:pointer;transition:all .2s}
+.close-btn:hover{background:linear-gradient(135deg,#ef4444,#dc2626);box-shadow:0 4px 16px rgba(220,38,38,.4)}
+.footer{text-align:center;padding:8px;border-top:1px solid rgba(250,204,21,.15)}
+.footer p{color:rgba(253,230,138,.3);font-size:11px}
 </style>
 </head>
 <body>
-<!-- LEFT: Iklan (70%) -->
+<!-- LEFT: Iklan (70%) — Red & Gold -->
 <div class="left">
   <div class="ad-area">
     <div class="ad-content">
@@ -80,21 +90,25 @@ body{height:100vh;overflow:hidden;background:#0f172a;display:flex}
     <span style="color:#4ade80;font-weight:600" id="status-text">Menunggu...</span>
   </div>
   <div class="r-items" id="items-list">
-    <div style="text-align:center;padding:40px 0"><p style="color:#475569;font-size:12px">Menunggu transaksi...</p></div>
+    <div style="text-align:center;padding:60px 0"><p style="color:#78716c;font-size:14px">Menunggu transaksi...</p></div>
   </div>
   <div class="r-total">
-    <div class="r-total-label">Total</div>
+    <div class="r-total-label">Total Belanja</div>
     <div class="r-total-amount" id="grand-total">Rp 0</div>
     <div class="r-total-sub" id="payment-info"></div>
+  </div>
+  <!-- Close button — tampil setelah checkout -->
+  <div class="close-bar" id="close-bar">
+    <button class="close-btn" onclick="closeTransaction()">✓ Tutup Transaksi</button>
   </div>
 </div>
 
 <script>
 // Clock
-function updateClock(){const n=new Date();document.getElementById("clock").textContent=n.toLocaleTimeString("id-ID",{hour12:false})}
+function updateClock(){var n=new Date();document.getElementById("clock").textContent=n.toLocaleTimeString("id-ID",{hour12:false})}
 setInterval(updateClock,1000);updateClock();
 
-// Load ads from settings
+// Load ads
 async function loadAds(){
   try{
     var r=await fetch("/api/settings");var s=await r.json();
@@ -117,6 +131,7 @@ loadAds();
 
 // WebSocket
 var liveItems=[];
+var isCheckoutDone=false;
 var WS_URL="ws://"+location.host+"/ws";
 function connectWS(){
   try{
@@ -141,15 +156,14 @@ function connectWS(){
   }catch(e){}
 }
 
-// Live cart update dari kasir
+// Live cart dari kasir
 function handleCartUpdate(data){
+  if(isCheckoutDone)return; // Abaikan update setelah checkout
   liveItems=data.items||[];
   var total=data.total||0;
   renderLiveItems();
-  // Update total
   document.getElementById("grand-total").textContent="Rp "+total.toLocaleString("id-ID");
-  document.getElementById("payment-info").textContent=""+liveItems.length+" item";
-  // Status
+  document.getElementById("payment-info").textContent=liveItems.length+" item dipilih";
   document.getElementById("status-text").textContent="Memilih produk...";
   document.getElementById("status-text").style.color="#fbbf24";
   document.querySelector("#r-status .dot").style.background="#fbbf24";
@@ -158,12 +172,12 @@ function handleCartUpdate(data){
 function renderLiveItems(){
   var el=document.getElementById("items-list");
   if(!liveItems.length){
-    el.innerHTML='<div style="text-align:center;padding:40px 0"><p style="color:#475569;font-size:12px">Menunggu transaksi...</p></div>';
+    el.innerHTML='<div style="text-align:center;padding:60px 0"><p style="color:#78716c;font-size:14px">Menunggu transaksi...</p></div>';
     return;
   }
   var html="";
   liveItems.forEach(function(item,i){
-    html+='<div class="item-row slide-in" style="animation-delay:'+i*50+'ms">';
+    html+='<div class="item-row slide-in" style="animation-delay:'+i*30+'ms">';
     html+='<div class="item-num">'+(i+1)+'</div>';
     html+='<div class="item-info"><p class="item-name">'+item.name+'</p><p class="item-qty">'+item.qty+' x Rp '+item.price.toLocaleString("id-ID")+'</p></div>';
     html+='<p class="item-price">Rp '+(item.price*item.qty).toLocaleString("id-ID")+'</p>';
@@ -173,27 +187,32 @@ function renderLiveItems(){
   el.scrollTop=el.scrollHeight;
 }
 
-// Checkout selesai — final transaction
+// Checkout selesai
 function handleNewTx(tx){
-  // Tampilkan item + total final
+  isCheckoutDone=true;
   liveItems=(tx.items||[]).map(function(it){return{name:it.name,qty:it.qty,price:it.price}});
   renderLiveItems();
   document.getElementById("grand-total").textContent="Rp "+(tx.grand_total||0).toLocaleString("id-ID");
-  document.getElementById("payment-info").textContent="✅ "+(tx.payment||"CASH");
-  // Status biru
+  document.getElementById("payment-info").textContent="✅ "+(tx.payment||"CASH")+" — Selesai";
   document.getElementById("status-text").textContent="Transaksi selesai!";
-  document.getElementById("status-text").style.color="#60a5fa";
-  document.querySelector("#r-status .dot").style.background="#60a5fa";
-  // Reset setelah 8 detik
-  setTimeout(function(){
-    liveItems=[];
-    document.getElementById("items-list").innerHTML='<div style="text-align:center;padding:40px 0"><p style="color:#475569;font-size:12px">Menunggu transaksi...</p></div>';
-    document.getElementById("grand-total").textContent="Rp 0";
-    document.getElementById("payment-info").textContent="";
-    document.getElementById("status-text").textContent="Menunggu...";
-    document.getElementById("status-text").style.color="#4ade80";
-    document.querySelector("#r-status .dot").style.background="#22c55e";
-  },8000);
+  document.getElementById("status-text").style.color="#22c55e";
+  document.querySelector("#r-status .dot").style.background="#22c55e";
+  document.getElementById("status-bar").style.background="rgba(34,197,94,.15)";
+  // Tampilkan tombol Tutup
+  document.getElementById("close-bar").style.display="block";
+}
+
+// Tutup transaksi — manual reset
+function closeTransaction(){
+  isCheckoutDone=false;
+  liveItems=[];
+  document.getElementById("items-list").innerHTML='<div style="text-align:center;padding:60px 0"><p style="color:#78716c;font-size:14px">Menunggu transaksi...</p></div>';
+  document.getElementById("grand-total").textContent="Rp 0";
+  document.getElementById("payment-info").textContent="";
+  document.getElementById("status-text").textContent="Menunggu...";
+  document.getElementById("status-text").style.color="#4ade80";
+  document.querySelector("#r-status .dot").style.background="#22c55e";
+  document.getElementById("close-bar").style.display="none";
 }
 
 connectWS();
