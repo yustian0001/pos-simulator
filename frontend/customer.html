@@ -11,13 +11,30 @@ body{display:flex;background:#1a0a0a}
 @keyframes slideIn{from{opacity:0;transform:translateX(-20px)}to{opacity:1;transform:translateX(0)}}
 @keyframes pulseGlow{0%,100%{box-shadow:0 0 20px rgba(212,175,55,.3)}50%{box-shadow:0 0 40px rgba(212,175,55,.6)}}
 @keyframes marquee{0%{transform:translateX(100%)}100%{transform:translateX(-100%)}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
 .slide-in{animation:slideIn .3s ease-out}
 .pulse-glow{animation:pulseGlow 2s infinite}
 .marquee{animation:marquee 25s linear infinite}
-/* LEFT: Iklan (70%) — #8B0015 + #D4AF37 */
+/* LEFT: Iklan (70%) */
 .left{width:70%;display:flex;flex-direction:column;background:linear-gradient(135deg,#8B0015 0%,#a5001a 30%,#c41230 60%,#d4243a 100%);position:relative;overflow:hidden}
 .left::before{content:"";position:absolute;inset:0;background:radial-gradient(ellipse at 30% 50%,rgba(212,175,55,.15) 0%,transparent 60%);pointer-events:none}
 .left::after{content:"";position:absolute;inset:0;background:radial-gradient(ellipse at 70% 80%,rgba(212,175,55,.1) 0%,transparent 50%);pointer-events:none}
+/* Ad image area (16:9) */
+.ad-carousel-wrap{flex:1;display:flex;flex-direction:column;padding:24px 32px 0;position:relative;z-index:1}
+.ad-carousel{flex:1;border:2px solid rgba(212,175,55,.3);border-radius:16px;overflow:hidden;background:rgba(0,0,0,.3);position:relative}
+.ad-carousel img{width:100%;height:100%;object-fit:contain;animation:fadeIn .5s ease-out}
+.ad-carousel .ad-fallback{width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fde68a}
+.ad-carousel .ad-fallback .icon{font-size:64px;margin-bottom:12px}
+.ad-carousel .ad-fallback h2{font-size:32px;font-weight:900;color:#fef3c7;margin-bottom:8px}
+.ad-carousel .ad-fallback p{font-size:16px;opacity:.8}
+.ad-dots{display:flex;justify-content:center;gap:8px;padding:8px}
+.ad-dot{width:10px;height:10px;border-radius:50%;background:rgba(212,175,55,.3);cursor:pointer;transition:background .2s}
+.ad-dot.active{background:#D4AF37}
+/* Running text bar */
+.ad-marquee-wrap{border:2px solid rgba(212,175,55,.3);border-radius:12px;padding:10px 16px;margin:12px 32px 20px;background:rgba(212,175,55,.08);overflow:hidden;position:relative;z-index:1}
+.ad-marquee-text{color:#fde68a;font-size:15px;font-weight:600;white-space:nowrap}
+.footer{position:relative;z-index:1;text-align:center;padding:8px;border-top:1px solid rgba(212,175,55,.15)}
+.footer p{color:rgba(253,230,138,.3);font-size:11px}
 /* RIGHT: Transaksi (30%) */
 .right{width:30%;display:flex;flex-direction:column;background:linear-gradient(to bottom,#1c1917,#292524);border-left:2px solid rgba(212,175,55,.3)}
 .r-header{background:rgba(28,25,23,.9);padding:16px 20px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid rgba(212,175,55,.2)}
@@ -32,44 +49,31 @@ body{display:flex;background:#1a0a0a}
 .r-total-label{color:#a8a29e;font-size:12px}
 .r-total-amount{font-size:32px;font-weight:900;color:#D4AF37;font-variant-numeric:tabular-nums}
 .r-total-sub{font-size:12px;color:#a8a29e;margin-top:4px}
-/* Ad area */
-.ad-area{flex:1;display:flex;align-items:center;justify-content:center;padding:40px;position:relative;z-index:1}
-.ad-content{text-align:center;max-width:600px}
-.ad-icon{width:100px;height:100px;background:linear-gradient(135deg,rgba(212,175,55,.2),rgba(212,175,55,.05));border:2px solid rgba(212,175,55,.3);border-radius:24px;display:flex;align-items:center;justify-content:center;margin:0 auto 24px;font-size:48px}
-.ad-title{font-size:36px;font-weight:900;color:#fef3c7;margin-bottom:10px;text-shadow:0 2px 8px rgba(0,0,0,.3)}
-.ad-desc{color:#fde68a;font-size:16px;margin-bottom:28px;opacity:.9}
-.ad-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:28px}
-.ad-card{background:rgba(212,175,55,.1);backdrop-filter:blur(8px);border-radius:16px;padding:18px;border:1px solid rgba(212,175,55,.25);transition:transform .2s}
-.ad-card:hover{transform:scale(1.03)}
-.ad-card .emoji{font-size:28px;margin-bottom:4px}
-.ad-card .name{color:#fef3c7;font-weight:700;font-size:15px}
-.ad-card .price{color:#D4AF37;font-weight:700;font-size:15px}
-.ad-card .old{color:#a8a29e;font-size:12px;text-decoration:line-through}
-.marquee-bar{overflow:hidden;background:rgba(212,175,55,.08);border:1px solid rgba(212,175,55,.15);border-radius:10px;padding:8px 16px}
-.marquee-text{color:#fde68a;font-size:13px;white-space:nowrap}
-/* Item rows */
-.item-row{background:rgba(41,37,36,.8);border-radius:10px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;border:1px solid rgba(120,113,108,.3);margin-bottom:6px;transition:border-color .2s}
-.item-row:hover{border-color:rgba(212,175,55,.4)}
+.item-row{background:rgba(41,37,36,.8);border-radius:10px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;border:1px solid rgba(120,113,108,.3);margin-bottom:6px}
 .item-num{width:24px;height:24px;background:linear-gradient(135deg,#8B0015,#a5001a);border-radius:6px;display:flex;align-items:center;justify-content:center;color:#D4AF37;font-weight:700;font-size:11px;flex-shrink:0}
 .item-info{flex:1;margin-left:10px}
 .item-name{color:#fef3c7;font-weight:600;font-size:13px}
 .item-qty{color:#a8a29e;font-size:11px}
 .item-price{color:#D4AF37;font-weight:700;font-variant-numeric:tabular-nums;font-size:13px}
-.footer{text-align:center;padding:8px;border-top:1px solid rgba(212,175,55,.15)}
-.footer p{color:rgba(253,230,138,.3);font-size:11px}
 </style>
 </head>
 <body>
-<!-- LEFT: Iklan (70%) — #8B0015 + #D4AF37 -->
+<!-- LEFT: Iklan (70%) -->
 <div class="left">
-  <div class="ad-area">
-    <div class="ad-content">
-      <div class="ad-icon pulse-glow" id="ad-icon">🛍️</div>
-      <h2 class="ad-title" id="ad-title">Promo Spesial Hari Ini!</h2>
-      <p class="ad-desc" id="ad-desc">Dapatkan diskon menarik untuk semua produk pilihan</p>
-      <div class="ad-grid" id="promo-cards"></div>
-      <div class="marquee-bar"><p class="marquee-text marquee" id="ad-marquee">🎉 Promo Spesial! 🎉</p></div>
+  <div class="ad-carousel-wrap">
+    <!-- Carousel 16:9 -->
+    <div class="ad-carousel" id="ad-carousel">
+      <div class="ad-fallback" id="ad-fallback">
+        <div class="icon pulse-glow">🛍️</div>
+        <h2 id="ad-title">Promo Spesial Hari Ini!</h2>
+        <p id="ad-desc">Dapatkan diskon menarik untuk semua produk pilihan</p>
+      </div>
     </div>
+    <div class="ad-dots" id="ad-dots"></div>
+  </div>
+  <!-- Running Text -->
+  <div class="ad-marquee-wrap">
+    <p class="ad-marquee-text marquee" id="ad-marquee">🎉 Promo Spesial! 🎉</p>
   </div>
   <div class="footer"><p>POS Simulator v2.2</p></div>
 </div>
@@ -99,25 +103,45 @@ body{display:flex;background:#1a0a0a}
 function updateClock(){var n=new Date();document.getElementById("clock").textContent=n.toLocaleTimeString("id-ID",{hour12:false})}
 setInterval(updateClock,1000);updateClock();
 
-// Load ads
+// Carousel state
+var _adImages=[];
+var _adIdx=0;
+var _carouselTimer=null;
+
+// Load ads + images from settings
 async function loadAds(){
   try{
     var r=await fetch("/api/settings");var s=await r.json();
     if(s.ad_title)document.getElementById("ad-title").textContent=s.ad_title;
     if(s.ad_desc)document.getElementById("ad-desc").textContent=s.ad_desc;
     if(s.ad_marquee)document.getElementById("ad-marquee").textContent=s.ad_marquee;
-    if(s.ad_cards){
-      var cards=JSON.parse(s.ad_cards);
-      var grid="";
-      cards.forEach(function(c){
-        grid+='<div class="ad-card"><p class="emoji">'+c.emoji+'</p><p class="name">'+c.name+'</p><p class="price">Rp '+parseInt(c.price).toLocaleString("id-ID")+'</p>';
-        if(c.old_price)grid+='<p class="old">Rp '+parseInt(c.old_price).toLocaleString("id-ID")+'</p>';
-        grid+='</div>';
-      });
-      document.getElementById("promo-cards").innerHTML=grid;
-    }
+    // Load images
+    _adImages=JSON.parse(s.ad_images||"[]");
+    renderCarousel();
   }catch(e){}
 }
+function renderCarousel(){
+  var el=document.getElementById("ad-carousel");
+  var dots=document.getElementById("ad-dots");
+  if(!_adImages.length){
+    // Show fallback (no images uploaded)
+    el.innerHTML='<div class="ad-fallback" id="ad-fallback"><div class="icon pulse-glow">🛍️</div><h2 id="ad-title">Promo Spesial Hari Ini!</h2><p id="ad-desc">Dapatkan diskon menarik untuk semua produk pilihan</p></div>';
+    dots.innerHTML='';
+    if(_carouselTimer)clearInterval(_carouselTimer);
+    return;
+  }
+  // Show image carousel
+  el.innerHTML='<img src="'+_adImages[_adIdx]+'" alt="Iklan">';
+  dots.innerHTML=_adImages.map(function(_,i){
+    return '<div class="ad-dot'+(i===_adIdx?' active':'')+'" onclick="goSlide('+i+')"></div>';
+  }).join("");
+  // Auto-rotate
+  if(_adImages.length>1){
+    if(_carouselTimer)clearInterval(_carouselTimer);
+    _carouselTimer=setInterval(function(){_adIdx=(_adIdx+1)%_adImages.length;renderCarousel()},4000);
+  }
+}
+function goSlide(i){_adIdx=i;renderCarousel()}
 loadAds();
 
 // WebSocket
@@ -148,7 +172,6 @@ function connectWS(){
   }catch(e){}
 }
 
-// Live cart dari kasir
 function handleCartUpdate(data){
   if(isCheckoutDone)return;
   liveItems=data.items||[];
@@ -179,7 +202,6 @@ function renderLiveItems(){
   el.scrollTop=el.scrollHeight;
 }
 
-// Checkout selesai
 function handleNewTx(tx){
   isCheckoutDone=true;
   liveItems=(tx.items||[]).map(function(it){return{name:it.name,qty:it.qty,price:it.price}});
@@ -191,7 +213,6 @@ function handleNewTx(tx){
   document.querySelector("#r-status .dot").style.background="#22c55e";
 }
 
-// Reset manual dari kasir Print button
 function closeTransaction(){
   isCheckoutDone=false;
   liveItems=[];
