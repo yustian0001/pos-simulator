@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -92,7 +93,11 @@ func main() {
 	})
 	mux.HandleFunc("/api/shifts/", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "POST" {
-			adminOnly(handleCloseShift)(w, r)
+			if strings.HasSuffix(r.URL.Path, "/close-self") {
+				handleCloseShiftSelf(w, r)
+			} else {
+				adminOnly(handleCloseShift)(w, r)
+			}
 		}
 	})
 	mux.HandleFunc("/api/cash/drop", adminOnly(handleCashDrop))

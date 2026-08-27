@@ -178,6 +178,10 @@ async function openShift(){
 // === LOGOUT ===
 function logoutKasir(){
   if(!confirm("Logout dan tutup shift?"))return;
+  // Tutup shift dulu
+  if(currentShiftId){
+    fetch(API+"/api/shifts/"+currentShiftId+"/close-self",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({closing_cash:0})}).catch(function(){});
+  }
   currentUser="";currentDisplayName="";currentShiftId=null;
   document.getElementById("kasir-screen").style.display="none";
   document.getElementById("login-screen").style.display="flex";

@@ -70,6 +70,7 @@ tr:hover{background:#f8fafc}
     <button class="tab" onclick="showTab('transactions')">🧾 Transaksi</button>
     <button class="tab" onclick="showTab('daily')">📊 Laporan</button>
     <button class="tab" onclick="showTab('stock')">📦 Stok</button>
+    <button class="tab" onclick="showTab('ads')">📺 Iklan</button>
     <button class="tab" onclick="showTab('system')">⚙️ Sistem</button>
   </div>
 
@@ -131,6 +132,19 @@ tr:hover{background:#f8fafc}
     <table><thead><tr><th>SKU</th><th>Nama</th><th>Kategori</th><th style="text-align:center">Stok</th><th style="text-align:right">Modal</th><th style="text-align:right">Jual</th><th style="text-align:right">Nilai Stok</th></tr></thead><tbody id="stock-table"></tbody></table>
   </div>
 
+  <!-- ADS -->
+  <div id="panel-ads" class="card hidden">
+    <h2 style="font-size:18px;font-weight:700;margin-bottom:12px">📺 Iklan Customer Display</h2>
+    <p style="font-size:12px;color:#64748b;margin-bottom:12px">Edit iklan yang tampil di dashboard customer. Perubahan langsung terlihat.</p>
+    <div class="form-group"><label>Judul Iklan</label><input id="a-title"></div>
+    <div class="form-group"><label>Deskripsi</label><input id="a-desc"></div>
+    <div class="form-group"><label>Teks Marquee (scroll)</label><input id="a-marquee"></div>
+    <h3 style="font-size:14px;font-weight:600;margin:12px 0 8px">Kartu Promo</h3>
+    <div id="ad-cards-list"></div>
+    <button class="btn btn-green btn-sm" onclick="addAdCard()" style="margin-top:8px">+ Tambah Kartu</button>
+    <div style="margin-top:12px"><button class="btn btn-primary" onclick="saveAds()">💾 Simpan Iklan</button></div>
+  </div>
+
   <!-- SYSTEM -->
   <div id="panel-system" class="card hidden">
     <h2 style="font-size:18px;font-weight:700;margin-bottom:12px">⚙️ Sistem</h2>
@@ -184,7 +198,7 @@ async function logout(){await authFetch("/api/logout",{method:"POST"});sessionSt
 
 // Tabs
 function showTab(name){
-  ["products","shifts","cash","members","transactions","daily","stock","system"].forEach(t=>{
+  ["products","shifts","cash","members","transactions","daily","stock","ads","system"].forEach(t=>{
     document.getElementById("panel-"+t).classList.toggle("hidden",t!==name);
   });
   document.querySelectorAll(".tab").forEach((b,i)=>{
@@ -256,6 +270,18 @@ async function saveSettings(){await authFetch("/api/settings",{method:"PUT",head
 function backupDB(){window.open("/api/backup","_blank")}
 async function restoreDB(input){if(!input.files[0])return;if(!confirm("Restore akan mengganti database saat ini. Lanjut?"))return;const fd=new FormData();fd.append("file",input.files[0]);await authFetch("/api/restore",{method:"POST",body:fd});alert("Restore berhasil! Restart server.");input.value=""}
 
+// ADS
+var _adCards=[];
+async function loadAdsSettings(){try{var r=await fetch("/api/settings");var s=await r.json();document.getElementById("a-title").value=s.ad_title||"Promo Spesial Hari Ini!";document.getElementById("a-desc").value=s.ad_desc||"Dapatkan diskon menarik untuk semua produk pilihan";document.getElementById("a-marquee").value=s.ad_marquee||"🎉 Promo 17 Agustus!";_adCards=JSON.parse(s.ad_cards||'[]');renderAdCards(_adCards)}catch(e){}}
+function renderAdCards(cards){document.getElementById("ad-cards-list").innerHTML=cards.map(function(c,i){return '<div style="display:flex;gap:8px;margin-bottom:8px;align-items:end;border:1px solid #e2e8f0;border-radius:8px;padding:8px"><div style="flex:1"><label style="font-size:11px">Emoji</label><input class="ad-emoji" value="'+c.emoji+'" style="width:100%;border:1px solid #d1d5db;border-radius:6px;padding:4px 8px;font-size:12px"></div><div style="flex:2"><label style="font-size:11px">Nama</label><input class="ad-name" value="'+c.name+'" style="width:100%;border:1px solid #d1d5db;border-radius:6px;padding:4px 8px;font-size:12px"></div><div style="flex:1"><label style="font-size:11px">Harga</label><input class="ad-price" value="'+c.price+'" type="number" style="width:100%;border:1px solid #d1d5db;border-radius:6px;padding:4px 8px;font-size:12px"></div><div style="flex:1"><label style="font-size:11px">Harga Lama</label><input class="ad-old" value="'+(c.old_price||'')+'" type="number" style="width:100%;border:1px solid #d1d5db;border-radius:6px;padding:4px 8px;font-size:12px"></div><button onclick="removeAdCard('+i+')" style="background:#dc2626;color:#fff;border:none;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:11px">✕</button></div>'}).join("")}
+function addAdCard(){_adCards.push({emoji:"🎉",name:"Promo Baru",price:10000,old_price:null});renderAdCards(_adCards)}
+function removeAdCard(i){_adCards.splice(i,1);renderAdCards(_adCards)}
+async function saveAds(){var e=document.querySelectorAll(".ad-emoji"),n=document.querySelectorAll(".ad-name"),p=document.querySelectorAll(".ad-price"),o=document.querySelectorAll(".ad-old");var cards=[];for(var i=0;i<e.length;i++)cards.push({emoji:e[i].value,name:n[i].value,price:parseInt(p[i].value)||0,old_price:o[i].value?parseInt(o[i].value):null});await authFetch("/api/settings",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({ad_title:document.getElementById("a-title").value,ad_desc:document.getElementById("a-desc").value,ad_marquee:document.getElementById("a-marquee").value,ad_cards:JSON.stringify(cards)})});alert("Iklan tersimpan!")}
+async function loadSettings(){const r=await authFetch("/api/settings");const s=await r.json();document.getElementById("s-name").value=s.store_name||"";document.getElementById("s-address").value=s.store_address||"";document.getElementById("s-phone").value=s.store_phone||""}
+async function saveSettings(){await authFetch("/api/settings",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({store_name:document.getElementById("s-name").value,store_address:document.getElementById("s-address").value,store_phone:document.getElementById("s-phone").value})});alert("Pengaturan tersimpan!")}
+function backupDB(){window.open("/api/backup","_blank")}
+async function restoreDB(input){if(!input.files[0])return;if(!confirm("Restore akan mengganti database saat ini. Lanjut?"))return;const fd=new FormData();fd.append("file",input.files[0]);await authFetch("/api/restore",{method:"POST",body:fd});alert("Restore berhasil! Restart server.");input.value=""}
+
 // Init
-loadProducts();checkAlerts();
+loadProducts();checkAlerts();loadAdsSettings();
 </script></body></html>

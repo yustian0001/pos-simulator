@@ -373,6 +373,38 @@ func handleCloseShift(w http.ResponseWriter, r *http.Request) {
 	jsonResponse(w, map[string]interface{}{"status": "ok", "expected": expected, "closing": req.ClosingCash, "discrepancy": discrepancy}, 200)
 }
 
+func handleCloseShiftSelf(w http.ResponseWriter, r *http.Request) {
+	id := parseID(r.URL.Path)
+	if id == 0 {
+		jsonResponse(w, map[string]string{"error": "Invalid ID"}, 400)
+		return
+	}
+
+	var shift Shift
+	err := db.QueryRow("SELECT id,opening_cash,shift_name FROM shifts WHERE id=? AND status='open'", id).
+		Scan(&shift.ID, &shift.OpeningCash, &shift.ShiftName)
+	if err != nil {
+		jsonResponse(w, map[string]string{"error": "Shift tidak ditemukan atau sudah ditutup"}, 404)
+		return
+	}
+
+	var cashSales, cashOut, totalSales, totalTx int
+	db.QueryRow("SELECT COALESCE(SUM(grand_total),0) FROM transactions WHERE shift_id=? AND payment='CASH' AND status='completed'", id).Scan(&cashSales)
+	db.QueryRow("SELECT COALESCE(SUM(amount),0) FROM cash_log WHERE shift_id=? AND type='cash_out'", id).Scan(&cashOut)
+	db.QueryRow("SELECT COALESCE(SUM(grand_total),0), COUNT(*) FROM transactions WHERE shift_id=? AND status='completed'", id).Scan(&totalSales, &totalTx)
+
+	expected := shift.OpeningCash + cashSales - cashOut
+	// Auto-close: closing_cash = expected (no discrepancy)
+	closingCash := expected
+
+	db.Exec("UPDATE shifts SET closed_at=?,closing_cash=?,expected_cash=?,cash_sales=?,cash_out=?,cash_discrepancy=?,total_sales=?,total_tx=?,status='closed' WHERE id=?",
+		now(), closingCash, expected, cashSales, cashOut, 0, totalSales, totalTx, id)
+	db.Exec("INSERT INTO cash_log (shift_id,type,amount,description) VALUES (?,?,?,?)",
+		id, "closing", closingCash, fmt.Sprintf("Closing shift %s (auto)", shift.ShiftName))
+
+	jsonResponse(w, map[string]interface{}{"status": "ok", "expected": expected, "closing": closingCash, "discrepancy": 0}, 200)
+}
+
 // === Cash ===
 func handleCashDrop(w http.ResponseWriter, r *http.Request) {
 	var req struct {
