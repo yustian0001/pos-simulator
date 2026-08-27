@@ -69,7 +69,7 @@
   </div>
   <div style="border-top:1px solid #e2e8f0;padding:12px;background:#f8fafc">
     <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:2px"><span style="color:#64748b">Subtotal</span><span id="subtotal">Rp 0</span></div>
-    <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:2px"><span style="color:#64748b">PPN 11%</span><span id="tax-display">Rp 0</span></div>
+    <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:2px"><span style="color:#64748b"><span id="ppn-label">PPN 11%</span></span><span id="tax-display">Rp 0</span></div>
     <div style="display:flex;justify-content:space-between;font-size:18px;font-weight:900;margin-top:4px;border-top:1px solid #e2e8f0;padding-top:6px"><span>TOTAL</span><span id="cart-total" style="color:#2563eb">Rp 0</span></div>
   </div>
   <div style="padding:8px 12px;display:flex;gap:6px">
@@ -116,7 +116,7 @@
 </div>
 
 <script>
-var cart=[],payment="CASH",currentUser="",currentDisplayName="",currentShiftId=null,activeMember=null,lastTxReceipt=null;
+var cart=[],payment="CASH",ppnRate=11,currentUser="",currentDisplayName="",currentShiftId=null,activeMember=null,lastTxReceipt=null;
 var API="";
 
 // === LOGIN ===
@@ -155,7 +155,7 @@ async function openShift(){
     document.getElementById("shift-screen").style.display="none";
     document.getElementById("kasir-screen").style.display="block";
     document.getElementById("kasir-user-info").textContent=currentDisplayName+" | Shift: "+existing.shift_name+" (#"+currentShiftId+") | Modal: Rp "+existing.opening_cash.toLocaleString("id-ID");
-    loadProducts();
+    loadProducts();loadPPN();
   }else{
     // Buka shift baru
     var shiftName=document.getElementById("shift-name").value||"Shift";
@@ -167,7 +167,7 @@ async function openShift(){
       document.getElementById("shift-screen").style.display="none";
       document.getElementById("kasir-screen").style.display="block";
       document.getElementById("kasir-user-info").textContent=currentDisplayName+" | Shift: "+shiftName+" (#"+currentShiftId+") | Modal: Rp "+openingCash.toLocaleString("id-ID");
-      loadProducts();
+      loadProducts();loadPPN();
     }else{
       alert("Gagal buka shift: "+(d.error||"Unknown error"));
     }
@@ -211,9 +211,10 @@ async function loadProducts(search){
 function searchProducts(){loadProducts(document.getElementById("search").value)}
 
 // === CART ===
+async function loadPPN(){try{var r=await fetch("/api/settings");var s=await r.json();if(s.ppn_rate){ppnRate=parseFloat(s.ppn_rate)||11;document.getElementById("ppn-label").textContent="PPN "+ppnRate+"%";}if(s.store_name)document.title=s.store_name+" - Kasir";}catch(e){}}
 function broadcastCart(){
   var total=cart.reduce(function(s,i){return s+i.price*i.qty},0);
-  var tax=Math.round(total*0.11);
+  var tax=Math.round(total*ppnRate/100);
   var grand=total+tax;
   var items=cart.map(function(i){return{name:i.name,qty:i.qty,price:i.price}});
   fetch(API+"/api/ws-broadcast",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({type:"cart_update",data:{items:items,total:grand}})}).catch(function(){});
@@ -250,7 +251,7 @@ function renderCart(){
 
 function updateTotal(){
   var subtotal=cart.reduce(function(s,i){return s+i.price*i.qty},0);
-  var tax=Math.round(subtotal*0.11);
+  var tax=Math.round(subtotal*ppnRate/100);
   var grand=subtotal+tax;
   var paid=parseInt(document.getElementById("amount-paid").value)||0;
   var change=Math.max(0,paid-grand);
@@ -274,7 +275,7 @@ function setPayment(method){
 
 function showQrisModal(){
   var subtotal=cart.reduce(function(s,i){return s+i.price*i.qty},0);
-  var tax=Math.round(subtotal*0.11);
+  var tax=Math.round(subtotal*ppnRate/100);
   var grand=subtotal+tax;
   document.getElementById("qris-amount-text").textContent="Rp "+grand.toLocaleString("id-ID");
   var qrText="QRIS|POS SIMULATOR|"+grand;
@@ -294,7 +295,7 @@ async function checkout(){
   cart=[];
   document.getElementById("amount-paid").value="";
   renderCart();
-  loadProducts();
+  loadProducts();loadPPN();
 }
 
 function showPaymentModal(tx){

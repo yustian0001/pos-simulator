@@ -560,7 +560,15 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 	}
 
 	discount := req.Discount
-	tax := int(math.Round(float64(total-discount) * 0.11))
+	var ppnRate float64 = 11
+	var ppnStr string
+	db.QueryRow("SELECT value FROM settings WHERE key='ppn_rate'").Scan(&ppnStr)
+	if ppnStr != "" {
+		if v, err := strconv.ParseFloat(ppnStr, 64); err == nil {
+			ppnRate = v
+		}
+	}
+	tax := int(math.Round(float64(total-discount) * ppnRate / 100))
 	grandTotal := total - discount + tax
 	amountPaid := req.AmountPaid
 	if amountPaid == 0 {

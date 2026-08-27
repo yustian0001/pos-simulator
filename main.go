@@ -336,6 +336,7 @@ func initDB() {
 		"ad_cards":     `[{"emoji":"🍜","name":"Nasi Goreng","price":22000,"old_price":25000},{"emoji":"🥤","name":"Es Teh","price":5000,"old_price":null}]`,
 		"qris_merchant": "POS Simulator",
 		"qris_amount":   "0",
+		"ppn_rate":      "11",
 	}
 	for k, v := range settings {
 		db.Exec("INSERT OR IGNORE INTO settings (key,value) VALUES (?,?)", k, v)

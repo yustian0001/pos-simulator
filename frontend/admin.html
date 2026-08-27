@@ -188,6 +188,7 @@ tr:hover{background:#f8fafc}
         <div class="form-group"><label>Nama Toko</label><input id="s-name" value=""></div>
         <div class="form-group"><label>Alamat</label><input id="s-address" value=""></div>
         <div class="form-group"><label>No. HP</label><input id="s-phone" value=""></div>
+        <div class="form-group"><label>PPN (%)</label><input id="s-ppn" type="number" value="11" min="0" max="100" step="0.5"></div>
         <button class="btn btn-primary" onclick="saveSettings()">Simpan</button>
       </div>
     </div>
@@ -291,15 +292,15 @@ async function loadDailyReport(){const date=document.getElementById("report-date
 async function loadStockReport(){const r=await(await fetch("/api/stock-report")).json();document.getElementById("stock-table").innerHTML=r.map(p=>`<tr${p.stock<10?' style="background:#fef2f2"':''}><td style="font-family:monospace;font-size:11px">${p.sku}</td><td style="font-weight:600">${p.name}</td><td>${p.category}</td><td style="text-align:center;${p.stock<10?'color:#dc2626;font-weight:700':''}">${p.stock}</td><td style="text-align:right">Rp${p.cost.toLocaleString("id-ID")}</td><td style="text-align:right">Rp${p.price.toLocaleString("id-ID")}</td><td style="text-align:right;font-weight:600">Rp${(p.stock*p.cost).toLocaleString("id-ID")}</td></tr>`).join("")}
 
 // SYSTEM
-async function loadSettings(){const r=await(await fetch("/api/settings")).json();document.getElementById("s-name").value=r.store_name||"";document.getElementById("s-address").value=r.store_address||"";document.getElementById("s-phone").value=r.store_phone||""}
-async function saveSettings(){await authFetch("/api/settings",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({store_name:document.getElementById("s-name").value,store_address:document.getElementById("s-address").value,store_phone:document.getElementById("s-phone").value})});alert("Pengaturan tersimpan!")}
+async function loadSettings(){const r=await(await fetch("/api/settings")).json();document.getElementById("s-name").value=r.store_name||"";document.getElementById("s-address").value=r.store_address||"";document.getElementById("s-phone").value=r.store_phone||"";document.getElementById("s-ppn").value=r.ppn_rate||"11"}
+async function saveSettings(){await authFetch("/api/settings",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({store_name:document.getElementById("s-name").value,store_address:document.getElementById("s-address").value,store_phone:document.getElementById("s-phone").value,ppn_rate:document.getElementById("s-ppn").value})});alert("Pengaturan tersimpan!")}
 function backupDB(){window.open("/api/backup","_blank")}
 async function restoreDB(input){if(!input.files[0])return;if(!confirm("Restore akan mengganti database saat ini. Lanjut?"))return;const fd=new FormData();fd.append("file",input.files[0]);await authFetch("/api/restore",{method:"POST",body:fd});alert("Restore berhasil! Restart server.");input.value=""}
 
 // ADS
 // removed: var _adCards=[];
-async function loadSettings(){const r=await authFetch("/api/settings");const s=await r.json();document.getElementById("s-name").value=s.store_name||"";document.getElementById("s-address").value=s.store_address||"";document.getElementById("s-phone").value=s.store_phone||""}
-async function saveSettings(){await authFetch("/api/settings",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({store_name:document.getElementById("s-name").value,store_address:document.getElementById("s-address").value,store_phone:document.getElementById("s-phone").value})});alert("Pengaturan tersimpan!")}
+async function loadSettings(){const r=await authFetch("/api/settings");const s=await r.json();document.getElementById("s-name").value=s.store_name||"";document.getElementById("s-address").value=s.store_address||"";document.getElementById("s-phone").value=s.store_phone||"";document.getElementById("s-ppn").value=s.ppn_rate||"11"}
+async function saveSettings(){await authFetch("/api/settings",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({store_name:document.getElementById("s-name").value,store_address:document.getElementById("s-address").value,store_phone:document.getElementById("s-phone").value,ppn_rate:document.getElementById("s-ppn").value})});alert("Pengaturan tersimpan!")}
 function backupDB(){window.open("/api/backup","_blank")}
 async function restoreDB(input){if(!input.files[0])return;if(!confirm("Restore akan mengganti database saat ini. Lanjut?"))return;const fd=new FormData();fd.append("file",input.files[0]);await authFetch("/api/restore",{method:"POST",body:fd});alert("Restore berhasil! Restart server.");input.value=""}
 
