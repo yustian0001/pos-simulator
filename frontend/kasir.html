@@ -321,7 +321,8 @@ function printReceipt(){
   // Reset customer display
   fetch(API+"/api/ws-broadcast",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({type:"reset_display",data:{}})}).catch(function(){});
   if(!lastTxReceipt)return;
-  window.open("/receipt?tx="+lastTxReceipt.id,"_blank","width=400,height=600");
+  // Buka struk dengan autoprint untuk POS 58mm
+  window.open("/receipt?tx="+lastTxReceipt.id+"&autoprint=1","_blank","width=400,height=600");
 }
 
 // === KEYBOARD SHORTCUTS ===
