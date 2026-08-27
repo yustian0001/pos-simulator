@@ -6,12 +6,49 @@
 <title>POS - Kasir</title>
 </head>
 <body style="display:flex;height:100vh;overflow:hidden;background:#f1f5f9;font-family:system-ui,sans-serif;margin:0">
-<div id="app" style="display:flex;width:100%;height:100%">
+
+<!-- LOGIN SCREEN -->
+<div id="login-screen" style="position:fixed;inset:0;background:linear-gradient(135deg,#0f172a,#1e293b,#1d4ed8);display:flex;align-items:center;justify-content:center;z-index:100">
+  <div style="background:#fff;border-radius:20px;padding:32px;width:380px;text-align:center;box-shadow:0 25px 60px rgba(0,0,0,.3)">
+    <div style="width:64px;height:64px;background:linear-gradient(135deg,#22c55e,#16a34a);border-radius:16px;display:flex;align-items:center;justify-content:center;margin:0 auto 16px"><span style="font-size:28px">🛒</span></div>
+    <h2 style="font-size:20px;font-weight:700;margin-bottom:4px">Kasir Login</h2>
+    <p style="color:#64748b;font-size:13px;margin-bottom:20px">Pilih kasir untuk memulai</p>
+    <div style="text-align:left;margin-bottom:12px"><label style="font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:4px">Username</label>
+      <select id="login-user" style="width:100%;border:2px solid #e2e8f0;border-radius:10px;padding:10px 12px;font-size:14px;outline:none"><option value="kasir1">Andi (kasir1)</option><option value="kasir2">Budi (kasir2)</option></select></div>
+    <div style="text-align:left;margin-bottom:16px"><label style="font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:4px">Password</label>
+      <input id="login-pass" type="password" value="kasir123" style="width:100%;border:2px solid #e2e8f0;border-radius:10px;padding:10px 12px;font-size:14px;outline:none"></div>
+    <button onclick="doLogin()" style="width:100%;background:#22c55e;color:#fff;border:none;border-radius:10px;padding:12px;font-size:15px;font-weight:700;cursor:pointer">Masuk</button>
+    <p id="login-error" style="color:#dc2626;font-size:12px;margin-top:10px;display:none"></p>
+    <a href="/" style="color:#94a3b8;font-size:12px;display:inline-block;margin-top:12px;text-decoration:none">← Kembali</a>
+  </div>
+</div>
+
+<!-- SHIFT SCREEN -->
+<div id="shift-screen" style="position:fixed;inset:0;background:linear-gradient(135deg,#0f172a,#1e293b,#1d4ed8);display:none;align-items:center;justify-content:center;z-index:99">
+  <div style="background:#fff;border-radius:20px;padding:32px;width:380px;text-align:center;box-shadow:0 25px 60px rgba(0,0,0,.3)">
+    <div style="width:64px;height:64px;background:linear-gradient(135deg,#f59e0b,#d97706);border-radius:16px;display:flex;align-items:center;justify-content:center;margin:0 auto 16px"><span style="font-size:28px">📋</span></div>
+    <h2 style="font-size:20px;font-weight:700;margin-bottom:4px">Buka Shift</h2>
+    <p style="color:#64748b;font-size:13px;margin-bottom:20px">Selamat datang, <b id="shift-user-info"></b></p>
+    <div style="text-align:left;margin-bottom:12px"><label style="font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:4px">Nama Shift</label>
+      <input id="shift-name" value="Shift Pagi" style="width:100%;border:2px solid #e2e8f0;border-radius:10px;padding:10px 12px;font-size:14px;outline:none"></div>
+    <div style="text-align:left;margin-bottom:16px"><label style="font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:4px">Opening Cash (Rp)</label>
+      <input id="opening-cash" type="number" value="500000" style="width:100%;border:2px solid #e2e8f0;border-radius:10px;padding:10px 12px;font-size:14px;outline:none"></div>
+    <button onclick="openShift()" style="width:100%;background:#f59e0b;color:#fff;border:none;border-radius:10px;padding:12px;font-size:15px;font-weight:700;cursor:pointer">Buka Shift</button>
+  </div>
+</div>
+
+<!-- MAIN KASIR -->
+<div id="kasir-screen" style="display:none;width:100%;height:100%;flex:1">
+<div style="display:flex;width:100%;height:100%">
 <!-- LEFT -->
 <div style="flex:2;display:flex;flex-direction:column;overflow:hidden">
   <div style="background:#1e293b;color:#fff;padding:6px 16px;display:flex;justify-content:space-between;font-size:12px">
     <div><a href="/" style="color:#94a3b8">Dashboard</a> | <b style="color:#60a5fa">Kasir</b> | <a href="/admin" style="color:#94a3b8">Admin</a></div>
-    <span style="color:#94a3b8">POS Simulator v2.1</span>
+    <div style="display:flex;align-items:center;gap:12px">
+      <span style="color:#fbbf24" id="kasir-user-info">Kasir: -- | Shift: -</span>
+      <span style="color:#94a3b8">POS Simulator v2.2</span>
+      <button onclick="logoutKasir()" style="background:#dc2626;color:#fff;border:none;padding:3px 8px;border-radius:4px;cursor:pointer;font-size:10px">Logout</button>
+    </div>
   </div>
   <div style="background:#fff;padding:8px 16px;display:flex;justify-content:space-between;align-items:center;box-shadow:0 1px 3px rgba(0,0,0,.1)">
     <div style="font-weight:700;font-size:16px">🛒 Kasir</div>
@@ -48,6 +85,8 @@
   </div>
 </div>
 </div>
+</div>
+
 <!-- Payment Modal -->
 <div id="payment-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:50;align-items:center;justify-content:center">
   <div style="background:#fff;border-radius:16px;padding:24px;width:380px;text-align:center">
@@ -59,17 +98,59 @@
     <div style="background:#f8fafc;border-radius:8px;padding:12px;margin:12px 0;font-size:11px;text-align:left;border:1px solid #e2e8f0" id="modal-receipt"></div>
     <div style="display:flex;gap:8px;margin-top:12px">
       <button onclick="printReceipt()" style="flex:1;background:#1e293b;color:#fff;border:none;border-radius:8px;padding:10px;font-weight:600;cursor:pointer">🖨 Print</button>
-      <button onclick="closeModal()" style="flex:1;background:#2563eb;color:#fff;border:none;border-radius:8px;padding:10px;font-weight:600;cursor:pointer">Tutup</button>
+      <button onclick="closePaymentModal()" style="flex:1;background:#2563eb;color:#fff;border:none;border-radius:8px;padding:10px;font-weight:600;cursor:pointer">Tutup</button>
     </div>
   </div>
 </div>
+
 <script>
-var cart=[],payment="CASH",currentUser="",currentShiftId=null,activeMember=null,lastTxReceipt=null;
+var cart=[],payment="CASH",currentUser="",currentDisplayName="",currentShiftId=null,activeMember=null,lastTxReceipt=null;
 var API="";
 
-function updateClock(){var n=new Date();document.getElementById("clock")&&(document.getElementById("clock").textContent=n.toLocaleTimeString("id-ID",{hour12:false}))}
-setInterval(updateClock,1000);
+// === LOGIN ===
+async function doLogin(){
+  var user=document.getElementById("login-user").value;
+  var pass=document.getElementById("login-pass").value;
+  var r=await fetch(API+"/api/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username:user,password:pass})});
+  var d=await r.json();
+  if(d.status==="ok"){
+    currentUser=d.username;
+    currentDisplayName=d.display_name;
+    document.getElementById("login-screen").style.display="none";
+    document.getElementById("shift-screen").style.display="flex";
+    document.getElementById("shift-user-info").textContent=d.display_name;
+  }else{
+    document.getElementById("login-error").textContent=d.message||"Login gagal";
+    document.getElementById("login-error").style.display="block";
+  }
+}
 
+// === SHIFT ===
+async function openShift(){
+  var shiftName=document.getElementById("shift-name").value||"Shift";
+  var openingCash=parseInt(document.getElementById("opening-cash").value)||500000;
+  var r=await fetch(API+"/api/shifts/open",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({cashier:currentUser,shift_name:shiftName,opening_cash:openingCash})});
+  var d=await r.json();
+  if(d.status==="ok"){
+    currentShiftId=d.shift_id;
+    document.getElementById("shift-screen").style.display="none";
+    document.getElementById("kasir-screen").style.display="block";
+    document.getElementById("kasir-user-info").textContent=currentDisplayName+" | Shift: "+shiftName+" (#"+currentShiftId+")";
+    loadProducts();
+  }else{
+    alert("Gagal buka shift: "+(d.error||"Unknown error"));
+  }
+}
+
+// === LOGOUT ===
+function logoutKasir(){
+  if(!confirm("Logout dan tutup shift?"))return;
+  currentUser="";currentDisplayName="";currentShiftId=null;
+  document.getElementById("kasir-screen").style.display="none";
+  document.getElementById("login-screen").style.display="flex";
+}
+
+// === PRODUCTS ===
 async function loadProducts(search){
   var url=API+"/api/products";
   if(search)url+="?search="+encodeURIComponent(search);
@@ -91,9 +172,9 @@ async function loadProducts(search){
   }
   el.innerHTML=html;
 }
-
 function searchProducts(){loadProducts(document.getElementById("search").value)}
 
+// === CART ===
 function addToCart(id,name,price,stock){
   var ex=cart.find(function(i){return i.product_id===id});
   if(ex){if(ex.qty>=stock){alert("Stok habis!");return}ex.qty++}
@@ -148,6 +229,7 @@ function setPayment(method){
   updateTotal();
 }
 
+// === CHECKOUT ===
 async function checkout(){
   if(!cart.length)return;
   var paid=payment==="CASH"?(parseInt(document.getElementById("amount-paid").value)||0):0;
@@ -179,18 +261,15 @@ function showPaymentModal(tx){
   document.getElementById("payment-modal").style.display="flex";
 }
 
-function closeModal(){document.getElementById("payment-modal").style.display="none"}
-
+function closePaymentModal(){document.getElementById("payment-modal").style.display="none"}
 function printReceipt(){if(!lastTxReceipt)return;window.open("/receipt?tx="+lastTxReceipt.id,"_blank","width=400,height=600")}
 
-loadProducts();
-
-// Keyboard shortcuts
+// === KEYBOARD SHORTCUTS ===
 document.addEventListener("keydown",function(e){
   if(e.target.tagName==="INPUT")return;
   if(e.key==="F1"){e.preventDefault();document.getElementById("search").focus()}
   if(e.key==="F9"){e.preventDefault();if(!document.getElementById("btn-pay").disabled)checkout()}
-  if(e.key==="Escape"){closeModal()}
+  if(e.key==="Escape"){closePaymentModal()}
   if(e.ctrlKey&&e.key==="d"){e.preventDefault();clearCart()}
   if(e.ctrlKey&&e.key==="/"){e.preventDefault();document.getElementById("search").focus()}
 });
