@@ -74,7 +74,7 @@
   </div>
   <div style="padding:8px 12px;display:flex;gap:6px">
     <button onclick="setPayment('CASH')" id="btn-cash" style="flex:1;background:#22c55e;color:#fff;border:none;border-radius:8px;padding:10px;font-weight:700;font-size:11px;cursor:pointer">💵 TUNAI</button>
-    <button onclick="setPayment('QRIS')" id="btn-qris" style="flex:1;background:#a855f7;color:#fff;border:none;border-radius:8px;padding:10px;font-weight:700;font-size:11px;cursor:pointer">⚡ QRIS</button>
+    <button onclick="setPayment('QRIS');showQrisModal()" id="btn-qris" style="flex:1;background:#a855f7;color:#fff;border:none;border-radius:8px;padding:10px;font-weight:700;font-size:11px;cursor:pointer">⚡ QRIS</button>
   </div>
   <div id="cash-row" style="padding:0 12px 8px;display:flex;gap:6px">
     <input id="amount-paid" type="number" placeholder="Uang diterima" style="flex:1;border:2px solid #93c5fd;border-radius:8px;padding:8px;font-size:16px;font-weight:700" oninput="updateTotal()">
@@ -85,6 +85,19 @@
   </div>
 </div>
 </div>
+</div>
+
+<!-- QRIS Modal -->
+<div id="qris-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:60;align-items:center;justify-content:center" onclick="closeQrisModal()">
+  <div style="background:#fff;border-radius:16px;padding:24px;width:320px;text-align:center" onclick="event.stopPropagation()">
+    <h3 style="font-size:16px;font-weight:700;margin-bottom:4px">Scan QRIS</h3>
+    <p style="color:#64748b;font-size:12px;margin-bottom:12px" id="qris-amount-text">Rp 0</p>
+    <div style="background:#fff;border:2px solid #e2e8f0;border-radius:12px;padding:12px;margin-bottom:12px">
+      <img id="qris-img" src="" alt="QR Code" style="width:200px;height:200px;display:block;margin:0 auto">
+    </div>
+    <p style="font-size:11px;color:#64748b;margin-bottom:12px">Tunjukkan QR ini ke customer</p>
+    <button onclick="closeQrisModal();checkout()" style="width:100%;background:#2563eb;color:#fff;border:none;border-radius:8px;padding:10px;font-weight:600;cursor:pointer">Selesai Bayar</button>
+  </div>
 </div>
 
 <!-- Payment Modal -->
@@ -127,18 +140,38 @@ async function doLogin(){
 
 // === SHIFT ===
 async function openShift(){
-  var shiftName=document.getElementById("shift-name").value||"Shift";
-  var openingCash=parseInt(document.getElementById("opening-cash").value)||500000;
-  var r=await fetch(API+"/api/shifts/open",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({cashier:currentUser,shift_name:shiftName,opening_cash:openingCash})});
-  var d=await r.json();
-  if(d.status==="ok"){
-    currentShiftId=d.shift_id;
+  // Cek dulu apakah ada shift open untuk kasir ini
+  var existing=null;
+  try{
+    var sr=await fetch(API+"/api/shifts/active");
+    var shifts=await sr.json();
+    for(var i=0;i<shifts.length;i++){
+      if(shifts[i].cashier===currentUser){existing=shifts[i];break}
+    }
+  }catch(e){}
+
+  if(existing){
+    // Resume shift yang sudah ada
+    currentShiftId=existing.id;
     document.getElementById("shift-screen").style.display="none";
     document.getElementById("kasir-screen").style.display="block";
-    document.getElementById("kasir-user-info").textContent=currentDisplayName+" | Shift: "+shiftName+" (#"+currentShiftId+")";
+    document.getElementById("kasir-user-info").textContent=currentDisplayName+" | Shift: "+existing.shift_name+" (#"+currentShiftId+") | Modal: Rp "+existing.opening_cash.toLocaleString("id-ID");
     loadProducts();
   }else{
-    alert("Gagal buka shift: "+(d.error||"Unknown error"));
+    // Buka shift baru
+    var shiftName=document.getElementById("shift-name").value||"Shift";
+    var openingCash=parseInt(document.getElementById("opening-cash").value)||500000;
+    var r=await fetch(API+"/api/shifts/open",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({cashier:currentUser,shift_name:shiftName,opening_cash:openingCash})});
+    var d=await r.json();
+    if(d.status==="ok"){
+      currentShiftId=d.shift_id;
+      document.getElementById("shift-screen").style.display="none";
+      document.getElementById("kasir-screen").style.display="block";
+      document.getElementById("kasir-user-info").textContent=currentDisplayName+" | Shift: "+shiftName+" (#"+currentShiftId+") | Modal: Rp "+openingCash.toLocaleString("id-ID");
+      loadProducts();
+    }else{
+      alert("Gagal buka shift: "+(d.error||"Unknown error"));
+    }
   }
 }
 
@@ -228,6 +261,17 @@ function setPayment(method){
   document.getElementById("cash-row").style.display=method==="CASH"?"flex":"none";
   updateTotal();
 }
+
+function showQrisModal(){
+  var subtotal=cart.reduce(function(s,i){return s+i.price*i.qty},0);
+  var tax=Math.round(subtotal*0.11);
+  var grand=subtotal+tax;
+  document.getElementById("qris-amount-text").textContent="Rp "+grand.toLocaleString("id-ID");
+  var qrText="QRIS|POS SIMULATOR|"+grand;
+  document.getElementById("qris-img").src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data="+encodeURIComponent(qrText);
+  document.getElementById("qris-modal").style.display="flex";
+}
+function closeQrisModal(){document.getElementById("qris-modal").style.display="none"}
 
 // === CHECKOUT ===
 async function checkout(){

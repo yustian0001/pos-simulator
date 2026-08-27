@@ -87,9 +87,9 @@ body{height:100vh;overflow:hidden;background:#0f172a;display:flex}
   <div class="promo-area">
     <div class="promo-content">
       <div class="promo-icon pulse-glow">🛍️</div>
-      <h2 class="promo-title">Promo Spesial Hari Ini!</h2>
-      <p class="promo-desc">Dapatkan diskon menarik untuk semua produk pilihan</p>
-      <div class="promo-grid">
+      <h2 class="promo-title" id="ad-title">Promo Spesial Hari Ini!</h2>
+      <p class="promo-desc" id="ad-desc">Dapatkan diskon menarik untuk semua produk pilihan</p>
+      <div class="promo-grid" id="promo-cards">
         <div class="promo-card"><p class="emoji">🍜</p><p class="name">Nasi Goreng</p><p class="price">Rp 22.000</p><p class="old">Rp 25.000</p></div>
         <div class="promo-card"><p class="emoji">🥤</p><p class="name">Es Teh</p><p class="price">Rp 5.000</p><p style="color:#94a3b8;font-size:12px">Harga spesial!</p></div>
       </div>
@@ -99,6 +99,29 @@ body{height:100vh;overflow:hidden;background:#0f172a;display:flex}
   <div class="footer"><p>POS Simulator v2.2</p></div>
 </div>
 <script>
+// === ADS (load dari settings) ===
+async function loadAds(){
+  try{
+    var r=await fetch("/api/settings");
+    var s=await r.json();
+    if(s.ad_title)document.getElementById("ad-title").textContent=s.ad_title;
+    if(s.ad_desc)document.getElementById("ad-desc").textContent=s.ad_desc;
+    if(s.ad_marquee)document.querySelector(".marquee-text").textContent=s.ad_marquee;
+    if(s.ad_cards){
+      var cards=JSON.parse(s.ad_cards);
+      var grid="";
+      cards.forEach(function(c){
+        grid+='<div class="promo-card"><p class="emoji">'+c.emoji+'</p><p class="name">'+c.name+'</p><p class="price">Rp '+parseInt(c.price).toLocaleString("id-ID")+'</p>';
+        if(c.old_price)grid+='<p class="old">Rp '+parseInt(c.old_price).toLocaleString("id-ID")+'</p>';
+        grid+='</div>';
+      });
+      document.getElementById("promo-cards").innerHTML=grid;
+    }
+  }catch(e){}
+}
+loadAds();
+
+// === WEBSOCKET ===
 let allItems=[],runningTotal=0;
 const WS_URL="ws://"+location.host+"/ws";
 
@@ -116,9 +139,25 @@ function connectWS(){
 }
 
 function handleNewTx(tx){
+  // Reset — tampilkan HANYA item transaksi ini (akumulasi beberapa transaksi)
+  allItems=[];
   (tx.items||[]).forEach(item=>{allItems.push(item)});
   runningTotal=tx.grand_total||0;
   renderItems(tx);
+  // Reset setelah 8 detik
+  setTimeout(function(){
+    allItems=[];
+    runningTotal=0;
+    document.getElementById("items-list").innerHTML='<div style="text-align:center;padding:80px 0"><p style="color:#475569;font-size:18px">Menunggu transaksi baru...</p></div>';
+    document.getElementById("grand-total").textContent="Rp 0";
+    document.getElementById("running-total").textContent="Running: Rp 0";
+    document.getElementById("payment-badge").textContent="";
+    document.getElementById("tx-count").textContent="0 transaksi";
+    document.getElementById("status-bar").style.background="rgba(34,197,94,.1)";
+    document.getElementById("status-bar").style.borderBottomColor="rgba(34,197,94,.2)";
+    document.getElementById("status-text").textContent="Menunggu transaksi...";
+    document.getElementById("status-text").style.color="#4ade80";
+  },8000);
 }
 
 function renderItems(tx){

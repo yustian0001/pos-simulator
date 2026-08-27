@@ -330,6 +330,12 @@ func initDB() {
 		"opening_cash": "500000",
 		"store_address": "Jl. Contoh No. 123, Jakarta",
 		"store_phone":  "081234567890",
+		"ad_title":     "Promo Spesial Hari Ini!",
+		"ad_desc":      "Dapatkan diskon menarik untuk semua produk pilihan",
+		"ad_marquee":   "🎉 Promo 17 Agustus! Diskon 17% semua makanan! 🎉 Gratis Es Teh untuk pembelian di atas Rp 50.000! 🎉",
+		"ad_cards":     `[{"emoji":"🍜","name":"Nasi Goreng","price":22000,"old_price":25000},{"emoji":"🥤","name":"Es Teh","price":5000,"old_price":null}]`,
+		"qris_merchant": "POS Simulator",
+		"qris_amount":   "0",
 	}
 	for k, v := range settings {
 		db.Exec("INSERT OR IGNORE INTO settings (key,value) VALUES (?,?)", k, v)
