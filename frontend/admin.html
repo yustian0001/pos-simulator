@@ -303,6 +303,46 @@ async function saveSettings(){await authFetch("/api/settings",{method:"PUT",head
 function backupDB(){window.open("/api/backup","_blank")}
 async function restoreDB(input){if(!input.files[0])return;if(!confirm("Restore akan mengganti database saat ini. Lanjut?"))return;const fd=new FormData();fd.append("file",input.files[0]);await authFetch("/api/restore",{method:"POST",body:fd});alert("Restore berhasil! Restart server.");input.value=""}
 
+
+// ADS
+var _adImages=[];
+var _adIdx=0;
+var _carouselTimer=null;
+function handleAdImageUpload(event){
+  var files=event.target.files;
+  if(!files.length)return;
+  for(var i=0;i<files.length;i++){
+    var reader=new FileReader();
+    reader.onload=function(e){
+      _adImages.push(e.target.result);
+      renderAdCarousel();
+      document.getElementById("ad-count-text").textContent=_adImages.length+" gambar";
+    };
+    reader.readAsDataURL(files[i]);
+  }
+}
+function renderAdCarousel(){
+  var el=document.getElementById("ad-carousel");
+  var dots=document.getElementById("ad-carousel-dots");
+  var counter=document.getElementById("ad-carousel-counter");
+  if(!_adImages.length){
+    el.innerHTML='<p style="color:#64748b;font-size:14px">📷 Belum ada gambar</p>';
+    dots.innerHTML='';counter.textContent='';return;
+  }
+  el.innerHTML='<img src="'+_adImages[_adIdx]+'" style="width:100%;height:100%;object-fit:contain">';
+  counter.textContent=(_adIdx+1)+"/"+_adImages.length;
+  dots.innerHTML=_adImages.map(function(_,i){return '<div onclick="goSlide('+i+')" style="width:10px;height:10px;border-radius:50%;cursor:pointer;background:'+(i===_adIdx?'#2563eb':'rgba(255,255,255,.5)')+'"></div>'}).join("");
+  if(_adImages.length>1){
+    if(_carouselTimer)clearInterval(_carouselTimer);
+    _carouselTimer=setInterval(function(){_adIdx=(_adIdx+1)%_adImages.length;renderAdCarousel()},4000);
+  }
+}
+function goSlide(i){_carouselIdx=i;renderAdCarousel()}
+function clearAdImages(){_adImages=[];_adIdx=0;if(_carouselTimer)clearInterval(_carouselTimer);renderAdCarousel();document.getElementById("ad-count-text").textContent="0 gambar"}
+function updateMarqueePreview(){var v=document.getElementById("a-marquee").value||"Running text preview...";document.getElementById("ad-marquee-preview").textContent=v}
+async function loadAdsSettings(){try{var r=await fetch("/api/settings");var s=await r.json();document.getElementById("a-marquee").value=s.ad_marquee||"🎉 Promo Spesial! Diskon menarik untuk semua produk! 🎉";updateMarqueePreview();_adImages=JSON.parse(s.ad_images||"[]");renderAdCarousel();document.getElementById("ad-count-text").textContent=_adImages.length+" gambar";}catch(e){}}
+async function saveAds(){await authFetch("/api/settings",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({ad_marquee:document.getElementById("a-marquee").value,ad_images:JSON.stringify(_adImages)})});alert("Iklan tersimpan!")}
+
 // Init
-loadProducts();checkAlerts();loadAdsSettings();document.getElementById("ad-image-input").addEventListener("change",handleAdImageUpload);
+loadProducts();checkAlerts();loadAdsSettings();document.getElementById('ad-image-input').addEventListener('change',handleAdImageUpload);document.getElementById("ad-image-input").addEventListener("change",handleAdImageUpload);
 </script></body></html>
