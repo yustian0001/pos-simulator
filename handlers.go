@@ -4,8 +4,10 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"io"
 	"math"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -57,6 +59,12 @@ func parseID(path string) int {
 	return 0
 }
 
+func logError(context string, err error) {
+	if err != nil {
+		fmt.Printf("[ERROR] %s: %v\n", context, err)
+	}
+}
+
 // === Auth ===
 func handleLogin(w http.ResponseWriter, r *http.Request) {
 	var req struct {
@@ -89,6 +97,14 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 	jsonResponse(w, map[string]string{"status": "ok", "username": user.Username, "display_name": user.DisplayName, "role": user.Role, "token": token}, 200)
 }
 
+func handleLogout(w http.ResponseWriter, r *http.Request) {
+	token := r.Header.Get("Authorization")
+	if token != "" {
+		deleteSession(token)
+	}
+	jsonResponse(w, map[string]string{"status": "ok"}, 200)
+}
+
 func requireAuth(r *http.Request, requiredRole string) bool {
 	token := r.Header.Get("Authorization")
 	if token == "" {
@@ -105,7 +121,12 @@ func requireAuth(r *http.Request, requiredRole string) bool {
 }
 
 func handleGetUsers(w http.ResponseWriter, r *http.Request) {
-	rows, _ := db.Query("SELECT id,username,display_name,role,active FROM users")
+	rows, err := db.Query("SELECT id,username,display_name,role,active FROM users")
+	if err != nil {
+		logError("handleGetUsers", err)
+		jsonResponse(w, map[string]string{"error": "Database error"}, 500)
+		return
+	}
 	defer rows.Close()
 	var users []map[string]interface{}
 	for rows.Next() {
@@ -114,12 +135,19 @@ func handleGetUsers(w http.ResponseWriter, r *http.Request) {
 		rows.Scan(&id, &username, &display, &role, &active)
 		users = append(users, map[string]interface{}{"id": id, "username": username, "display_name": display, "role": role, "active": active})
 	}
+	if users == nil {
+		users = []map[string]interface{}{}
+	}
 	jsonResponse(w, users, 200)
 }
 
 // === Products ===
 func handleGetProducts(w http.ResponseWriter, r *http.Request) {
-	q := "SELECT id,sku,name,price,cost,category,stock,unit,barcode,promo_price,promo_active,active FROM products WHERE active=1"
+	isAdmin := r.URL.Query().Get("admin") == "1"
+	q := "SELECT id,sku,name,price,category,stock,unit,barcode,promo_price,promo_active,active FROM products WHERE active=1"
+	if isAdmin {
+		q = "SELECT id,sku,name,price,cost,category,stock,unit,barcode,promo_price,promo_active,active FROM products WHERE active=1"
+	}
 	var args []interface{}
 	if cat := r.URL.Query().Get("category"); cat != "" && cat != "Semua" {
 		q += " AND category=?"
@@ -130,22 +158,39 @@ func handleGetProducts(w http.ResponseWriter, r *http.Request) {
 		s := "%" + search + "%"
 		args = append(args, s, s, s)
 	}
-	rows, _ := db.Query(q, args...)
+	rows, err := db.Query(q, args...)
+	if err != nil {
+		logError("handleGetProducts", err)
+		jsonResponse(w, map[string]string{"error": "Database error"}, 500)
+		return
+	}
 	defer rows.Close()
-	var products []Product
+	var products []map[string]interface{}
 	for rows.Next() {
-		var p Product
-		rows.Scan(&p.ID, &p.SKU, &p.Name, &p.Price, &p.Cost, &p.Category, &p.Stock, &p.Unit, &p.Barcode, &p.PromoPrice, &p.PromoActive, &p.Active)
-		products = append(products, p)
+		if isAdmin {
+			var p Product
+			rows.Scan(&p.ID, &p.SKU, &p.Name, &p.Price, &p.Cost, &p.Category, &p.Stock, &p.Unit, &p.Barcode, &p.PromoPrice, &p.PromoActive, &p.Active)
+			products = append(products, map[string]interface{}{"id": p.ID, "sku": p.SKU, "name": p.Name, "price": p.Price, "cost": p.Cost, "category": p.Category, "stock": p.Stock, "unit": p.Unit, "barcode": p.Barcode, "promo_price": p.PromoPrice, "promo_active": p.PromoActive, "active": p.Active})
+		} else {
+			var id, price, stock, promoPrice, promoActive, active int
+			var sku, name, category, unit, barcode string
+			rows.Scan(&id, &sku, &name, &price, &category, &stock, &unit, &barcode, &promoPrice, &promoActive, &active)
+			products = append(products, map[string]interface{}{"id": id, "sku": sku, "name": name, "price": price, "category": category, "stock": stock, "unit": unit, "barcode": barcode, "promo_price": promoPrice, "promo_active": promoActive, "active": active})
+		}
 	}
 	if products == nil {
-		products = []Product{}
+		products = []map[string]interface{}{}
 	}
 	jsonResponse(w, products, 200)
 }
 
 func handleGetCategories(w http.ResponseWriter, r *http.Request) {
-	rows, _ := db.Query("SELECT id,name,icon FROM categories ORDER BY name")
+	rows, err := db.Query("SELECT id,name,icon FROM categories ORDER BY name")
+	if err != nil {
+		logError("handleGetCategories", err)
+		jsonResponse(w, map[string]string{"error": "Database error"}, 500)
+		return
+	}
 	defer rows.Close()
 	var cats []map[string]interface{}
 	for rows.Next() {
@@ -154,29 +199,65 @@ func handleGetCategories(w http.ResponseWriter, r *http.Request) {
 		rows.Scan(&id, &name, &icon)
 		cats = append(cats, map[string]interface{}{"id": id, "name": name, "icon": icon})
 	}
+	if cats == nil {
+		cats = []map[string]interface{}{}
+	}
 	jsonResponse(w, cats, 200)
 }
 
 func handleAddProduct(w http.ResponseWriter, r *http.Request) {
 	var p Product
-	decodeJSON(r, &p)
-	db.Exec("INSERT INTO products (sku,name,price,cost,category,stock,unit,barcode) VALUES (?,?,?,?,?,?,?,?)",
+	if err := decodeJSON(r, &p); err != nil {
+		jsonResponse(w, map[string]string{"error": "Invalid request"}, 400)
+		return
+	}
+	if p.Name == "" || p.SKU == "" {
+		jsonResponse(w, map[string]string{"error": "Nama dan SKU wajib diisi"}, 400)
+		return
+	}
+	_, err := db.Exec("INSERT INTO products (sku,name,price,cost,category,stock,unit,barcode) VALUES (?,?,?,?,?,?,?,?)",
 		p.SKU, p.Name, p.Price, p.Cost, p.Category, p.Stock, p.Unit, p.Barcode)
+	if err != nil {
+		logError("handleAddProduct", err)
+		jsonResponse(w, map[string]string{"error": "Gagal tambah produk"}, 500)
+		return
+	}
 	jsonResponse(w, map[string]string{"status": "ok"}, 200)
 }
 
 func handleUpdateProduct(w http.ResponseWriter, r *http.Request) {
 	id := parseID(r.URL.Path)
+	if id == 0 {
+		jsonResponse(w, map[string]string{"error": "Invalid ID"}, 400)
+		return
+	}
 	var p Product
-	decodeJSON(r, &p)
-	db.Exec("UPDATE products SET name=?,price=?,cost=?,category=?,stock=?,unit=?,barcode=?,promo_price=?,promo_active=? WHERE id=?",
+	if err := decodeJSON(r, &p); err != nil {
+		jsonResponse(w, map[string]string{"error": "Invalid request"}, 400)
+		return
+	}
+	_, err := db.Exec("UPDATE products SET name=?,price=?,cost=?,category=?,stock=?,unit=?,barcode=?,promo_price=?,promo_active=? WHERE id=?",
 		p.Name, p.Price, p.Cost, p.Category, p.Stock, p.Unit, p.Barcode, p.PromoPrice, p.PromoActive, id)
+	if err != nil {
+		logError("handleUpdateProduct", err)
+		jsonResponse(w, map[string]string{"error": "Gagal update produk"}, 500)
+		return
+	}
 	jsonResponse(w, map[string]string{"status": "ok"}, 200)
 }
 
 func handleDeleteProduct(w http.ResponseWriter, r *http.Request) {
 	id := parseID(r.URL.Path)
-	db.Exec("UPDATE products SET active=0 WHERE id=?", id)
+	if id == 0 {
+		jsonResponse(w, map[string]string{"error": "Invalid ID"}, 400)
+		return
+	}
+	_, err := db.Exec("UPDATE products SET active=0 WHERE id=?", id)
+	if err != nil {
+		logError("handleDeleteProduct", err)
+		jsonResponse(w, map[string]string{"error": "Gagal hapus produk"}, 500)
+		return
+	}
 	jsonResponse(w, map[string]string{"status": "ok"}, 200)
 }
 
@@ -187,12 +268,20 @@ func handleOpenShift(w http.ResponseWriter, r *http.Request) {
 		ShiftName   string `json:"shift_name"`
 		OpeningCash int    `json:"opening_cash"`
 	}
-	decodeJSON(r, &req)
+	if err := decodeJSON(r, &req); err != nil {
+		jsonResponse(w, map[string]string{"error": "Invalid request"}, 400)
+		return
+	}
 	if req.OpeningCash == 0 {
 		req.OpeningCash = 500000
 	}
-	res, _ := db.Exec("INSERT INTO shifts (shift_name,cashier,opening_cash,status) VALUES (?,?,?,?)",
+	res, err := db.Exec("INSERT INTO shifts (shift_name,cashier,opening_cash,status) VALUES (?,?,?,?)",
 		req.ShiftName, req.Cashier, req.OpeningCash, "open")
+	if err != nil {
+		logError("handleOpenShift", err)
+		jsonResponse(w, map[string]string{"error": "Gagal buka shift"}, 500)
+		return
+	}
 	sid, _ := res.LastInsertId()
 	db.Exec("INSERT INTO cash_log (shift_id,type,amount,description) VALUES (?,?,?,?)",
 		sid, "opening", req.OpeningCash, fmt.Sprintf("Opening cash shift %s", req.ShiftName))
@@ -202,10 +291,16 @@ func handleOpenShift(w http.ResponseWriter, r *http.Request) {
 func handleGetShifts(w http.ResponseWriter, r *http.Request) {
 	status := r.URL.Query().Get("status")
 	var rows *sql.Rows
+	var err error
 	if status != "" {
-		rows, _ = db.Query("SELECT id,shift_name,cashier,opened_at,closed_at,opening_cash,closing_cash,expected_cash,cash_sales,cash_out,cash_discrepancy,total_sales,total_tx,status FROM shifts WHERE status=? ORDER BY opened_at DESC", status)
+		rows, err = db.Query("SELECT id,shift_name,cashier,opened_at,closed_at,opening_cash,closing_cash,expected_cash,cash_sales,cash_out,cash_discrepancy,total_sales,total_tx,status FROM shifts WHERE status=? ORDER BY opened_at DESC", status)
 	} else {
-		rows, _ = db.Query("SELECT id,shift_name,cashier,opened_at,closed_at,opening_cash,closing_cash,expected_cash,cash_sales,cash_out,cash_discrepancy,total_sales,total_tx,status FROM shifts ORDER BY opened_at DESC LIMIT 50")
+		rows, err = db.Query("SELECT id,shift_name,cashier,opened_at,closed_at,opening_cash,closing_cash,expected_cash,cash_sales,cash_out,cash_discrepancy,total_sales,total_tx,status FROM shifts ORDER BY opened_at DESC LIMIT 50")
+	}
+	if err != nil {
+		logError("handleGetShifts", err)
+		jsonResponse(w, map[string]string{"error": "Database error"}, 500)
+		return
 	}
 	defer rows.Close()
 	var shifts []Shift
@@ -213,39 +308,56 @@ func handleGetShifts(w http.ResponseWriter, r *http.Request) {
 		var s Shift
 		rows.Scan(&s.ID, &s.ShiftName, &s.Cashier, &s.OpenedAt, &s.ClosedAt, &s.OpeningCash, &s.ClosingCash, &s.ExpectedCash, &s.CashSales, &s.CashOut, &s.Discrepancy, &s.TotalSales, &s.TotalTx, &s.Status)
 		shifts = append(shifts, s)
+	}
+	if shifts == nil {
+		shifts = []Shift{}
 	}
 	jsonResponse(w, shifts, 200)
 }
 
 func handleGetActiveShifts(w http.ResponseWriter, r *http.Request) {
-	rows, _ := db.Query("SELECT id,shift_name,cashier,opened_at,closed_at,opening_cash,closing_cash,expected_cash,cash_sales,cash_out,cash_discrepancy,total_sales,total_tx,status FROM shifts WHERE status='open'")
+	rows, err := db.Query("SELECT id,shift_name,cashier,opened_at,closed_at,opening_cash,closing_cash,expected_cash,cash_sales,cash_out,cash_discrepancy,total_sales,total_tx,status FROM shifts WHERE status='open'")
+	if err != nil {
+		logError("handleGetActiveShifts", err)
+		jsonResponse(w, map[string]string{"error": "Database error"}, 500)
+		return
+	}
 	defer rows.Close()
 	var shifts []Shift
 	for rows.Next() {
 		var s Shift
 		rows.Scan(&s.ID, &s.ShiftName, &s.Cashier, &s.OpenedAt, &s.ClosedAt, &s.OpeningCash, &s.ClosingCash, &s.ExpectedCash, &s.CashSales, &s.CashOut, &s.Discrepancy, &s.TotalSales, &s.TotalTx, &s.Status)
 		shifts = append(shifts, s)
+	}
+	if shifts == nil {
+		shifts = []Shift{}
 	}
 	jsonResponse(w, shifts, 200)
 }
 
 func handleCloseShift(w http.ResponseWriter, r *http.Request) {
 	id := parseID(r.URL.Path)
+	if id == 0 {
+		jsonResponse(w, map[string]string{"error": "Invalid ID"}, 400)
+		return
+	}
 	var req struct {
 		ClosingCash int `json:"closing_cash"`
 	}
-	decodeJSON(r, &req)
-
-	var shift Shift
-	err := db.QueryRow("SELECT id,opening_cash,shift_name FROM shifts WHERE id=?", id).
-		Scan(&shift.ID, &shift.OpeningCash, &shift.ShiftName)
-	if err != nil {
-		jsonResponse(w, map[string]string{"error": "Shift not found"}, 404)
+	if err := decodeJSON(r, &req); err != nil {
+		jsonResponse(w, map[string]string{"error": "Invalid request"}, 400)
 		return
 	}
 
-	var cashSales, cashOut, totalSales int
-	var totalTx int
+	var shift Shift
+	err := db.QueryRow("SELECT id,opening_cash,shift_name FROM shifts WHERE id=? AND status='open'", id).
+		Scan(&shift.ID, &shift.OpeningCash, &shift.ShiftName)
+	if err != nil {
+		jsonResponse(w, map[string]string{"error": "Shift tidak ditemukan atau sudah ditutup"}, 404)
+		return
+	}
+
+	var cashSales, cashOut, totalSales, totalTx int
 	db.QueryRow("SELECT COALESCE(SUM(grand_total),0) FROM transactions WHERE shift_id=? AND payment='CASH' AND status='completed'", id).Scan(&cashSales)
 	db.QueryRow("SELECT COALESCE(SUM(amount),0) FROM cash_log WHERE shift_id=? AND type='cash_out'", id).Scan(&cashOut)
 	db.QueryRow("SELECT COALESCE(SUM(grand_total),0), COUNT(*) FROM transactions WHERE shift_id=? AND status='completed'", id).Scan(&totalSales, &totalTx)
@@ -297,6 +409,9 @@ func handleGetCashLog(w http.ResponseWriter, r *http.Request) {
 		rows.Scan(&l.ID, &l.ShiftID, &l.Type, &l.Amount, &l.Description, &l.CreatedAt)
 		logs = append(logs, l)
 	}
+	if logs == nil {
+		logs = []CashLog{}
+	}
 	jsonResponse(w, logs, 200)
 }
 
@@ -304,11 +419,17 @@ func handleGetCashLog(w http.ResponseWriter, r *http.Request) {
 func handleGetMembers(w http.ResponseWriter, r *http.Request) {
 	search := r.URL.Query().Get("search")
 	var rows *sql.Rows
+	var err error
 	if search != "" {
 		s := "%" + search + "%"
-		rows, _ = db.Query("SELECT id,member_id,name,phone,email,points,tier,active FROM members WHERE active=1 AND (name LIKE ? OR phone LIKE ? OR member_id LIKE ?)", s, s, s)
+		rows, err = db.Query("SELECT id,member_id,name,phone,email,points,tier,active FROM members WHERE active=1 AND (name LIKE ? OR phone LIKE ? OR member_id LIKE ?)", s, s, s)
 	} else {
-		rows, _ = db.Query("SELECT id,member_id,name,phone,email,points,tier,active FROM members WHERE active=1 ORDER BY name")
+		rows, err = db.Query("SELECT id,member_id,name,phone,email,points,tier,active FROM members WHERE active=1 ORDER BY name")
+	}
+	if err != nil {
+		logError("handleGetMembers", err)
+		jsonResponse(w, map[string]string{"error": "Database error"}, 500)
+		return
 	}
 	defer rows.Close()
 	var members []Member
@@ -316,6 +437,9 @@ func handleGetMembers(w http.ResponseWriter, r *http.Request) {
 		var m Member
 		rows.Scan(&m.ID, &m.MemberID, &m.Name, &m.Phone, &m.Email, &m.Points, &m.Tier, &m.Active)
 		members = append(members, m)
+	}
+	if members == nil {
+		members = []Member{}
 	}
 	jsonResponse(w, members, 200)
 }
@@ -327,7 +451,7 @@ func handleAddMember(w http.ResponseWriter, r *http.Request) {
 		Email string `json:"email"`
 	}
 	decodeJSON(r, &req)
-	mid := fmt.Sprintf("MEM%06d", time.Now().UnixMilli()%1000000)
+	mid := generateID("MEM", 6)
 	db.Exec("INSERT INTO members (member_id,name,phone,email) VALUES (?,?,?,?)", mid, req.Name, req.Phone, req.Email)
 	jsonResponse(w, map[string]string{"status": "ok", "member_id": mid}, 200)
 }
@@ -345,7 +469,7 @@ func handleGetMember(w http.ResponseWriter, r *http.Request) {
 	jsonResponse(w, m, 200)
 }
 
-// === Checkout ===
+// === Checkout (with transaction + stock check) ===
 func handleCheckout(w http.ResponseWriter, r *http.Request) {
 	var req CheckoutReq
 	decodeJSON(r, &req)
@@ -355,7 +479,7 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	txID := fmt.Sprintf("TX%06d", time.Now().UnixMilli()%1000000)
+	txID := generateID("TX", 8)
 	total := 0
 	type checkoutItem struct {
 		Name     string `json:"name"`
@@ -367,12 +491,21 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 	}
 	var items []checkoutItem
 
+	// Use transaction for stock deduction
+	sqlTx, err := db.Begin()
+	if err != nil {
+		logError("checkout begin", err)
+		jsonResponse(w, map[string]string{"error": "Database error"}, 500)
+		return
+	}
+	defer sqlTx.Rollback()
+
 	for _, ci := range req.Items {
 		if ci.Qty <= 0 {
 			continue
 		}
 		var p Product
-		err := db.QueryRow("SELECT id,name,price,promo_price,promo_active,stock FROM products WHERE id=? AND active=1", ci.ProductID).
+		err := sqlTx.QueryRow("SELECT id,name,price,promo_price,promo_active,stock FROM products WHERE id=? AND active=1", ci.ProductID).
 			Scan(&p.ID, &p.Name, &p.Price, &p.PromoPrice, &p.PromoActive, &p.Stock)
 		if err != nil || p.Stock < ci.Qty {
 			continue
@@ -384,9 +517,14 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 		sub := (effectivePrice - ci.Discount) * ci.Qty
 		total += sub
 		items = append(items, checkoutItem{Name: p.Name, Qty: ci.Qty, Price: effectivePrice, Discount: ci.Discount, Subtotal: sub, Notes: ci.Notes})
-		db.Exec("INSERT INTO tx_items (tx_id,product_id,name,qty,price,discount,subtotal,notes) VALUES (?,?,?,?,?,?,?,?)",
+		sqlTx.Exec("INSERT INTO tx_items (tx_id,product_id,name,qty,price,discount,subtotal,notes) VALUES (?,?,?,?,?,?,?,?)",
 			txID, ci.ProductID, p.Name, ci.Qty, effectivePrice, ci.Discount, sub, ci.Notes)
-		db.Exec("UPDATE products SET stock=stock-? WHERE id=?", ci.Qty, ci.ProductID)
+		sqlTx.Exec("UPDATE products SET stock=stock-? WHERE id=? AND stock>=?", ci.Qty, ci.ProductID, ci.Qty)
+	}
+
+	if len(items) == 0 {
+		jsonResponse(w, map[string]string{"error": "Tidak ada produk valid"}, 400)
+		return
 	}
 
 	discount := req.Discount
@@ -401,15 +539,21 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 		change = 0
 	}
 
-	db.Exec("INSERT INTO transactions (tx_id,shift_id,total,discount,tax,grand_total,payment,amount_paid,change_amount,customer_name,member_id,cashier,notes) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+	sqlTx.Exec("INSERT INTO transactions (tx_id,shift_id,total,discount,tax,grand_total,payment,amount_paid,change_amount,customer_name,member_id,cashier,notes) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
 		txID, nullInt(req.ShiftID), total, discount, tax, grandTotal, req.Payment, amountPaid, change,
 		req.CustomerName, nullStr(req.MemberID), req.Cashier, req.Notes)
 
 	if req.ShiftID > 0 {
-		db.Exec("UPDATE shifts SET total_sales=total_sales+?, total_tx=total_tx+1 WHERE id=?", grandTotal, req.ShiftID)
+		sqlTx.Exec("UPDATE shifts SET total_sales=total_sales+?, total_tx=total_tx+1 WHERE id=?", grandTotal, req.ShiftID)
 	}
 	if req.MemberID != "" {
-		db.Exec("UPDATE members SET points=points+? WHERE member_id=?", grandTotal/1000, req.MemberID)
+		sqlTx.Exec("UPDATE members SET points=points+? WHERE member_id=?", grandTotal/1000, req.MemberID)
+	}
+
+	if err := sqlTx.Commit(); err != nil {
+		logError("checkout commit", err)
+		jsonResponse(w, map[string]string{"error": "Gagal simpan transaksi"}, 500)
+		return
 	}
 
 	txData := map[string]interface{}{
@@ -442,7 +586,7 @@ func nullStr(v string) interface{} {
 func handleHold(w http.ResponseWriter, r *http.Request) {
 	var req HoldReq
 	decodeJSON(r, &req)
-	holdID := fmt.Sprintf("H%05d", time.Now().UnixMilli()%100000)
+	holdID := generateID("H", 6)
 	db.Exec("INSERT INTO holds (hold_id,items_json,customer_name) VALUES (?,?,?)", holdID, string(req.Items), req.CustomerName)
 	jsonResponse(w, map[string]string{"status": "ok", "hold_id": holdID}, 200)
 }
@@ -458,6 +602,9 @@ func handleGetHolds(w http.ResponseWriter, r *http.Request) {
 		var items interface{}
 		json.Unmarshal([]byte(itemsJSON), &items)
 		holds = append(holds, map[string]interface{}{"id": id, "hold_id": holdID, "items": items, "customer_name": cust, "created_at": created})
+	}
+	if holds == nil {
+		holds = []map[string]interface{}{}
 	}
 	jsonResponse(w, holds, 200)
 }
@@ -507,33 +654,36 @@ func handleGetTransactions(w http.ResponseWriter, r *http.Request) {
 		}
 		txs = append(txs, txMap)
 	}
+	if txs == nil {
+		txs = []map[string]interface{}{}
+	}
 	jsonResponse(w, txs, 200)
 }
 
 func handleVoidTransaction(w http.ResponseWriter, r *http.Request) {
-	// URL: /api/transactions/{tx_id}/void — extract tx_id (3rd segment)
 	parts := strings.Split(r.URL.Path, "/")
 	txID := parts[len(parts)-2]
 
-	// Restore stock
-	fmt.Printf("[VOID] Restoring stock for tx_id=%s\n", txID)
-	itemRows, qerr := db.Query("SELECT product_id,qty FROM tx_items WHERE tx_id=?", txID)
-	if qerr != nil {
-		fmt.Printf("[VOID] Query error: %v\n", qerr)
-	} else {
-		for itemRows.Next() {
-			var pid, qty int
-			itemRows.Scan(&pid, &qty)
-			fmt.Printf("[VOID] Updating product %d: stock+%d\n", pid, qty)
-			_, e := db.Exec("UPDATE products SET stock=stock+? WHERE id=?", qty, pid)
-			if e != nil {
-				fmt.Printf("[VOID] Exec error: %v\n", e)
-			} else {
-				fmt.Printf("[VOID] Exec OK\n")
-			}
-		}
-		itemRows.Close()
+	// Check if already voided
+	var status string
+	err := db.QueryRow("SELECT status FROM transactions WHERE tx_id=?", txID).Scan(&status)
+	if err != nil {
+		jsonResponse(w, map[string]string{"error": "Transaksi tidak ditemukan"}, 404)
+		return
 	}
+	if status == "voided" {
+		jsonResponse(w, map[string]string{"error": "Transaksi sudah di-void"}, 400)
+		return
+	}
+
+	// Restore stock
+	itemRows, _ := db.Query("SELECT product_id,qty FROM tx_items WHERE tx_id=?", txID)
+	for itemRows.Next() {
+		var pid, qty int
+		itemRows.Scan(&pid, &qty)
+		db.Exec("UPDATE products SET stock=stock+? WHERE id=?", qty, pid)
+	}
+	itemRows.Close()
 
 	// Update shift
 	var grandTotal int
@@ -545,7 +695,6 @@ func handleVoidTransaction(w http.ResponseWriter, r *http.Request) {
 
 	// Mark voided
 	db.Exec("UPDATE transactions SET status='voided' WHERE tx_id=?", txID)
-
 	jsonResponse(w, map[string]string{"status": "ok"}, 200)
 }
 
@@ -562,9 +711,9 @@ func handleGetStats(w http.ResponseWriter, r *http.Request) {
 	db.QueryRow("SELECT COUNT(*) FROM members WHERE active=1").Scan(&memberCount)
 
 	type topProd struct {
-		Name      string `json:"name"`
-		TotalQty  int    `json:"total_qty"`
-		TotalRev  int    `json:"total_rev"`
+		Name     string `json:"name"`
+		TotalQty int    `json:"total_qty"`
+		TotalRev int    `json:"total_rev"`
 	}
 	tpRows, _ := db.Query("SELECT p.name, SUM(ti.qty), SUM(ti.subtotal) FROM tx_items ti JOIN products p ON ti.product_id=p.id JOIN transactions t ON ti.tx_id=t.tx_id WHERE t.created_at LIKE ? AND t.status='completed' GROUP BY p.name ORDER BY SUM(ti.qty) DESC LIMIT 5", todayPattern)
 	defer tpRows.Close()
@@ -576,11 +725,11 @@ func handleGetStats(w http.ResponseWriter, r *http.Request) {
 	}
 
 	type recentTx struct {
-		TxID      string `json:"tx_id"`
-		GrandTotal int   `json:"grand_total"`
-		Payment   string `json:"payment"`
-		Cashier   string `json:"cashier"`
-		CreatedAt string `json:"created_at"`
+		TxID       string `json:"tx_id"`
+		GrandTotal int    `json:"grand_total"`
+		Payment    string `json:"payment"`
+		Cashier    string `json:"cashier"`
+		CreatedAt  string `json:"created_at"`
 	}
 	rtRows, _ := db.Query("SELECT tx_id,grand_total,payment,cashier,created_at FROM transactions WHERE status='completed' ORDER BY created_at DESC LIMIT 10")
 	defer rtRows.Close()
@@ -608,15 +757,14 @@ func handleGetStats(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleHealth(w http.ResponseWriter, r *http.Request) {
-	jsonResponse(w, map[string]string{"status": "ok", "service": "pos-server-go", "version": "2.0"}, 200)
+	jsonResponse(w, map[string]string{"status": "ok", "service": "pos-server-go", "version": "2.2"}, 200)
 }
-
 
 // === E-Voucher ===
 type EVoucherReq struct {
-	Type    string `json:"type"`    // pulsa, data, pln
-	Product string `json:"product"` // operator/nominal
-	Number  string `json:"number"`  // nomor tujuan
+	Type    string `json:"type"`
+	Product string `json:"product"`
+	Number  string `json:"number"`
 	Amount  int    `json:"amount"`
 	Cashier string `json:"cashier"`
 	ShiftID int    `json:"shift_id"`
@@ -626,7 +774,7 @@ func handleEVoucher(w http.ResponseWriter, r *http.Request) {
 	var req EVoucherReq
 	decodeJSON(r, &req)
 
-	txID := fmt.Sprintf("EV%06d", time.Now().UnixMilli()%1000000)
+	txID := generateID("EV", 8)
 	adminFee := 1500
 	total := req.Amount + adminFee
 
@@ -677,8 +825,12 @@ func handleReceipt(w http.ResponseWriter, r *http.Request) {
 	txID := parts[len(parts)-2]
 
 	var t Transaction
-	db.QueryRow("SELECT tx_id,total,discount,tax,grand_total,payment,amount_paid,change_amount,customer_name,cashier,created_at FROM transactions WHERE tx_id=?", txID).
+	err := db.QueryRow("SELECT tx_id,total,discount,tax,grand_total,payment,amount_paid,change_amount,customer_name,cashier,created_at FROM transactions WHERE tx_id=?", txID).
 		Scan(&t.TxID, &t.Total, &t.Discount, &t.Tax, &t.GrandTotal, &t.Payment, &t.AmountPaid, &t.ChangeAmt, &t.Customer, &t.Cashier, &t.CreatedAt)
+	if err != nil {
+		jsonResponse(w, map[string]string{"error": "Transaksi tidak ditemukan"}, 404)
+		return
+	}
 
 	rows, _ := db.Query("SELECT name,qty,price,discount,subtotal FROM tx_items WHERE tx_id=?", txID)
 	defer rows.Close()
@@ -689,8 +841,13 @@ func handleReceipt(w http.ResponseWriter, r *http.Request) {
 		items = append(items, it)
 	}
 
+	storeName := "POS Simulator"
+	storeAddr := ""
+	db.QueryRow("SELECT value FROM settings WHERE key='store_name'").Scan(&storeName)
+	db.QueryRow("SELECT value FROM settings WHERE key='store_address'").Scan(&storeAddr)
+
 	receipt := map[string]interface{}{
-		"store_name": "POS Simulator", "address": "Indonesia",
+		"store_name": storeName, "address": storeAddr,
 		"tx_id": t.TxID, "date": t.CreatedAt, "cashier": t.Cashier,
 		"items": items, "subtotal": t.Total, "discount": t.Discount,
 		"tax": t.Tax, "total": t.GrandTotal, "payment": t.Payment,
@@ -700,7 +857,7 @@ func handleReceipt(w http.ResponseWriter, r *http.Request) {
 	jsonResponse(w, receipt, 200)
 }
 
-// === Quick Access (top selling products) ===
+// === Quick Access ===
 func handleQuickAccess(w http.ResponseWriter, r *http.Request) {
 	rows, _ := db.Query(`
 		SELECT p.id, p.name, p.price, p.promo_price, p.promo_active, p.stock, p.category,
@@ -716,11 +873,16 @@ func handleQuickAccess(w http.ResponseWriter, r *http.Request) {
 		var name, category string
 		rows.Scan(&id, &name, &price, &promoPrice, &promoActive, &stock, &category, &totalSold)
 		effective := price
-		if promoActive == 1 && promoPrice > 0 { effective = promoPrice }
+		if promoActive == 1 && promoPrice > 0 {
+			effective = promoPrice
+		}
 		products = append(products, map[string]interface{}{
 			"id": id, "name": name, "price": price, "effective_price": effective,
 			"stock": stock, "category": category, "total_sold": totalSold,
 		})
+	}
+	if products == nil {
+		products = []map[string]interface{}{}
 	}
 	jsonResponse(w, products, 200)
 }
@@ -728,7 +890,9 @@ func handleQuickAccess(w http.ResponseWriter, r *http.Request) {
 // === Daily Report ===
 func handleDailyReport(w http.ResponseWriter, r *http.Request) {
 	date := r.URL.Query().Get("date")
-	if date == "" { date = time.Now().Format("2006-01-02") }
+	if date == "" {
+		date = time.Now().Format("2006-01-02")
+	}
 	pattern := date + "%"
 
 	var totalSales, totalTx, cashSales, qrisSales, tfSales, totalProfit, totalDiscount, totalTax int
@@ -740,8 +904,11 @@ func handleDailyReport(w http.ResponseWriter, r *http.Request) {
 	db.QueryRow("SELECT COALESCE(SUM(discount),0) FROM transactions WHERE created_at LIKE ? AND status='completed'", pattern).Scan(&totalDiscount)
 	db.QueryRow("SELECT COALESCE(SUM(tax),0) FROM transactions WHERE created_at LIKE ? AND status='completed'", pattern).Scan(&totalTax)
 
-	// Top items
-	type itemReport struct { Name string `json:"name"`; Qty int `json:"qty"`; Revenue int `json:"revenue"` }
+	type itemReport struct {
+		Name    string `json:"name"`
+		Qty     int    `json:"qty"`
+		Revenue int    `json:"revenue"`
+	}
 	irRows, _ := db.Query("SELECT p.name, SUM(ti.qty), SUM(ti.subtotal) FROM tx_items ti JOIN products p ON ti.product_id=p.id JOIN transactions t ON ti.tx_id=t.tx_id WHERE t.created_at LIKE ? AND t.status='completed' GROUP BY p.name ORDER BY SUM(ti.qty) DESC LIMIT 10", pattern)
 	defer irRows.Close()
 	var topItems []itemReport
@@ -751,8 +918,11 @@ func handleDailyReport(w http.ResponseWriter, r *http.Request) {
 		topItems = append(topItems, ir)
 	}
 
-	// Hourly breakdown
-	type hourlyReport struct { Hour string `json:"hour"`; TxCount int `json:"tx_count"`; Sales int `json:"sales"` }
+	type hourlyReport struct {
+		Hour    string `json:"hour"`
+		TxCount int    `json:"tx_count"`
+		Sales   int    `json:"sales"`
+	}
 	hrRows, _ := db.Query("SELECT strftime('%H:00', created_at), COUNT(*), SUM(grand_total) FROM transactions WHERE created_at LIKE ? AND status='completed' GROUP BY strftime('%H:00', created_at) ORDER BY strftime('%H:00', created_at)", pattern)
 	defer hrRows.Close()
 	var hourly []hourlyReport
@@ -762,8 +932,10 @@ func handleDailyReport(w http.ResponseWriter, r *http.Request) {
 		hourly = append(hourly, hr)
 	}
 
-	// Low stock
-	type lowStockItem struct { Name string `json:"name"`; Stock int `json:"stock"` }
+	type lowStockItem struct {
+		Name  string `json:"name"`
+		Stock int    `json:"stock"`
+	}
 	lsRows, _ := db.Query("SELECT name, stock FROM products WHERE active=1 AND stock<10 ORDER BY stock ASC")
 	defer lsRows.Close()
 	var lowStock []lowStockItem
@@ -794,8 +966,7 @@ func handleStockReport(w http.ResponseWriter, r *http.Request) {
 	jsonResponse(w, products, 200)
 }
 
-
-// === Sales Trend (7 days) ===
+// === Sales Trend ===
 func handleSalesTrend(w http.ResponseWriter, r *http.Request) {
 	rows, _ := db.Query(`
 		SELECT DATE(created_at) as date, SUM(grand_total) as total, COUNT(*) as tx_count
@@ -834,4 +1005,81 @@ func handlePaymentBreakdown(w http.ResponseWriter, r *http.Request) {
 		breakdown = append(breakdown, pm)
 	}
 	jsonResponse(w, breakdown, 200)
+}
+
+// === Low Stock Alerts ===
+func handleLowStock(w http.ResponseWriter, r *http.Request) {
+	rows, err := db.Query("SELECT id,sku,name,stock,category FROM products WHERE active=1 AND stock<10 ORDER BY stock ASC")
+	if err != nil {
+		logError("handleLowStock", err)
+		jsonResponse(w, []map[string]interface{}{}, 200)
+		return
+	}
+	defer rows.Close()
+	var products []map[string]interface{}
+	for rows.Next() {
+		var id, stock int
+		var sku, name, category string
+		rows.Scan(&id, &sku, &name, &stock, &category)
+		products = append(products, map[string]interface{}{"id": id, "sku": sku, "name": name, "stock": stock, "category": category})
+	}
+	if products == nil {
+		products = []map[string]interface{}{}
+	}
+	jsonResponse(w, products, 200)
+}
+
+// === Backup / Restore ===
+func handleBackup(w http.ResponseWriter, r *http.Request) {
+	dbPath := getDataDir() + "/pos.db"
+	w.Header().Set("Content-Disposition", "attachment; filename=pos_backup_"+time.Now().Format("20060102_150405")+".db")
+	w.Header().Set("Content-Type", "application/octet-stream")
+	http.ServeFile(w, r, dbPath)
+}
+
+func handleRestore(w http.ResponseWriter, r *http.Request) {
+	r.ParseMultipartForm(32 << 20) // 32MB max
+	file, _, err := r.FormFile("file")
+	if err != nil {
+		jsonResponse(w, map[string]string{"error": "File tidak ditemukan"}, 400)
+		return
+	}
+	defer file.Close()
+
+	dbPath := getDataDir() + "/pos.db"
+	out, err := os.Create(dbPath)
+	if err != nil {
+		logError("handleRestore create", err)
+		jsonResponse(w, map[string]string{"error": "Gagal simpan file"}, 500)
+		return
+	}
+	defer out.Close()
+	io.Copy(out, file)
+
+	jsonResponse(w, map[string]string{"status": "ok", "message": "Database berhasil direstore. Restart server untuk menerapkan."}, 200)
+}
+
+// === Settings ===
+func handleGetSettings(w http.ResponseWriter, r *http.Request) {
+	rows, _ := db.Query("SELECT key, value FROM settings")
+	defer rows.Close()
+	settings := map[string]string{}
+	for rows.Next() {
+		var k, v string
+		rows.Scan(&k, &v)
+		settings[k] = v
+	}
+	jsonResponse(w, settings, 200)
+}
+
+func handleUpdateSettings(w http.ResponseWriter, r *http.Request) {
+	var settings map[string]string
+	if err := decodeJSON(r, &settings); err != nil {
+		jsonResponse(w, map[string]string{"error": "Invalid request"}, 400)
+		return
+	}
+	for k, v := range settings {
+		db.Exec("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", k, v)
+	}
+	jsonResponse(w, map[string]string{"status": "ok"}, 200)
 }

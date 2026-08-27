@@ -18,9 +18,14 @@ import (
 
 var db *sql.DB
 
-// Session store
+// Session store with expiry
+type session struct {
+	role      string
+	expiresAt time.Time
+}
+
 var (
-	sessions   = make(map[string]string) // token -> role
+	sessions   = make(map[string]*session)
 	sessionsMu sync.RWMutex
 )
 
@@ -29,7 +34,10 @@ func createSession(role string) string {
 	rand.Read(b)
 	token := hex.EncodeToString(b)
 	sessionsMu.Lock()
-	sessions[token] = role
+	sessions[token] = &session{
+		role:      role,
+		expiresAt: time.Now().Add(8 * time.Hour), // 8 jam per shift
+	}
 	sessionsMu.Unlock()
 	return token
 }
@@ -37,71 +45,105 @@ func createSession(role string) string {
 func validateSession(token string) (string, bool) {
 	sessionsMu.RLock()
 	defer sessionsMu.RUnlock()
-	role, ok := sessions[token]
-	return role, ok
+	s, ok := sessions[token]
+	if !ok {
+		return "", false
+	}
+	if time.Now().After(s.expiresAt) {
+		delete(sessions, token)
+		return "", false
+	}
+	return s.role, true
+}
+
+func deleteSession(token string) {
+	sessionsMu.Lock()
+	delete(sessions, token)
+	sessionsMu.Unlock()
+}
+
+func cleanupSessions() {
+	for {
+		time.Sleep(5 * time.Minute)
+		sessionsMu.Lock()
+		now := time.Now()
+		for token, s := range sessions {
+			if now.After(s.expiresAt) {
+				delete(sessions, token)
+			}
+		}
+		sessionsMu.Unlock()
+	}
+}
+
+// Generate secure random ID
+func generateID(prefix string, length int) string {
+	b := make([]byte, length)
+	rand.Read(b)
+	return fmt.Sprintf("%s%s", prefix, hex.EncodeToString(b)[:length*2])
 }
 
 type Product struct {
-	ID           int    `json:"id"`
-	SKU          string `json:"sku"`
-	Name         string `json:"name"`
-	Price        int    `json:"price"`
-	Cost         int    `json:"cost"`
-	Category     string `json:"category"`
-	Stock        int    `json:"stock"`
-	Unit         string `json:"unit"`
-	Barcode      string `json:"barcode"`
-	PromoPrice   int    `json:"promo_price"`
-	PromoActive  int    `json:"promo_active"`
-	Active       int    `json:"active"`
+	ID          int    `json:"id"`
+	SKU         string `json:"sku"`
+	Name        string `json:"name"`
+	Price       int    `json:"price"`
+	Cost        int    `json:"cost,omitempty"`
+	Category    string `json:"category"`
+	Stock       int    `json:"stock"`
+	Unit        string `json:"unit"`
+	Barcode     string `json:"barcode"`
+	PromoPrice  int    `json:"promo_price"`
+	PromoActive int    `json:"promo_active"`
+	Active      int    `json:"active"`
 }
 
 type Transaction struct {
-	ID          int        `json:"id"`
-	TxID        string     `json:"tx_id"`
-	ShiftID     *int       `json:"shift_id"`
-	Total       int        `json:"total"`
-	Discount    int        `json:"discount"`
-	Tax         int        `json:"tax"`
-	GrandTotal  int        `json:"grand_total"`
-	Payment     string     `json:"payment"`
-	AmountPaid  int        `json:"amount_paid"`
-	ChangeAmt   int        `json:"change_amount"`
-	Customer    string     `json:"customer_name"`
-	MemberID    *string    `json:"member_id"`
-	Cashier     string     `json:"cashier"`
-	Notes       string     `json:"notes"`
-	Status      string     `json:"status"`
-	CreatedAt   string     `json:"created_at"`
+	ID         int     `json:"id"`
+	TxID       string  `json:"tx_id"`
+	ShiftID    *int    `json:"shift_id"`
+	Total      int     `json:"total"`
+	Discount   int     `json:"discount"`
+	Tax        int     `json:"tax"`
+	GrandTotal int     `json:"grand_total"`
+	Payment    string  `json:"payment"`
+	AmountPaid int     `json:"amount_paid"`
+	ChangeAmt  int     `json:"change_amount"`
+	Customer   string  `json:"customer_name"`
+	MemberID   *string `json:"member_id"`
+	Cashier    string  `json:"cashier"`
+	Notes      string  `json:"notes"`
+	Status     string  `json:"status"`
+	CreatedAt  string  `json:"created_at"`
 }
 
 type TxItem struct {
-	ID         int    `json:"id"`
-	TxID       string `json:"tx_id"`
-	ProductID  int    `json:"product_id"`
-	Name       string `json:"name"`
-	Qty        int    `json:"qty"`
-	Price      int    `json:"price"`
-	Discount   int    `json:"discount"`
-	Subtotal   int    `json:"subtotal"`
-	Notes      string `json:"notes"`
+	ID        int    `json:"id"`
+	TxID      string `json:"tx_id"`
+	ProductID int    `json:"product_id"`
+	Name      string `json:"name"`
+	Qty       int    `json:"qty"`
+	Price     int    `json:"price"`
+	Discount  int    `json:"discount"`
+	Subtotal  int    `json:"subtotal"`
+	Notes     string `json:"notes"`
 }
 
 type Shift struct {
-	ID            int     `json:"id"`
-	ShiftName     string  `json:"shift_name"`
-	Cashier       string  `json:"cashier"`
-	OpenedAt      string  `json:"opened_at"`
-	ClosedAt      *string `json:"closed_at"`
-	OpeningCash   int     `json:"opening_cash"`
-	ClosingCash   int     `json:"closing_cash"`
-	ExpectedCash  int     `json:"expected_cash"`
-	CashSales     int     `json:"cash_sales"`
-	CashOut       int     `json:"cash_out"`
-	Discrepancy   int     `json:"cash_discrepancy"`
-	TotalSales    int     `json:"total_sales"`
-	TotalTx       int     `json:"total_tx"`
-	Status        string  `json:"status"`
+	ID           int     `json:"id"`
+	ShiftName    string  `json:"shift_name"`
+	Cashier      string  `json:"cashier"`
+	OpenedAt     string  `json:"opened_at"`
+	ClosedAt     *string `json:"closed_at"`
+	OpeningCash  int     `json:"opening_cash"`
+	ClosingCash  int     `json:"closing_cash"`
+	ExpectedCash int     `json:"expected_cash"`
+	CashSales    int     `json:"cash_sales"`
+	CashOut      int     `json:"cash_out"`
+	Discrepancy  int     `json:"cash_discrepancy"`
+	TotalSales   int     `json:"total_sales"`
+	TotalTx      int     `json:"total_tx"`
+	Status       string  `json:"status"`
 }
 
 type CashLog struct {
@@ -114,20 +156,20 @@ type CashLog struct {
 }
 
 type Member struct {
-	ID         int    `json:"id"`
-	MemberID   string `json:"member_id"`
-	Name       string `json:"name"`
-	Phone      string `json:"phone"`
-	Email      string `json:"email"`
-	Points     int    `json:"points"`
-	Tier       string `json:"tier"`
-	Active     int    `json:"active"`
+	ID       int    `json:"id"`
+	MemberID string `json:"member_id"`
+	Name     string `json:"name"`
+	Phone    string `json:"phone"`
+	Email    string `json:"email"`
+	Points   int    `json:"points"`
+	Tier     string `json:"tier"`
+	Active   int    `json:"active"`
 }
 
 type User struct {
 	ID          int    `json:"id"`
 	Username    string `json:"username"`
-	Password    string `json:"password"`
+	Password    string `json:"-"`
 	DisplayName string `json:"display_name"`
 	Role        string `json:"role"`
 	Active      int    `json:"active"`
@@ -254,7 +296,10 @@ func initDB() {
 		db.Exec("INSERT OR IGNORE INTO categories (name, icon) VALUES (?, ?)", c[0], c[1])
 	}
 
-	products := []struct{ sku, name, cat, unit, barcode string; price, cost, stock, promoPrice, promoActive int }{
+	products := []struct {
+		sku, name, cat, unit, barcode string
+		price, cost, stock, promoPrice, promoActive int
+	}{
 		{"PRD001", "Nasi Goreng", "Makanan", "pcs", "899001", 25000, 15000, 50, 22000, 1},
 		{"PRD002", "Ayam Geprek", "Makanan", "pcs", "899002", 35000, 20000, 30, 0, 0},
 		{"PRD003", "Es Teh", "Minuman", "pcs", "899003", 5000, 2000, 100, 0, 0},
@@ -281,8 +326,10 @@ func initDB() {
 	}
 
 	settings := map[string]string{
-		"store_name":  "POS Simulator",
+		"store_name":   "POS Simulator",
 		"opening_cash": "500000",
+		"store_address": "Jl. Contoh No. 123, Jakarta",
+		"store_phone":  "081234567890",
 	}
 	for k, v := range settings {
 		db.Exec("INSERT OR IGNORE INTO settings (key,value) VALUES (?,?)", k, v)

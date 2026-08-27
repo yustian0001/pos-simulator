@@ -1,72 +1,63 @@
-<!DOCTYPE html><html lang="id"><head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>POS Simulator</title>
-<script src="https://cdn.tailwindcss.com"></script>
-<script>tailwind.config={theme:{extend:{fontFamily:{heading:['Poppins','sans-serif'],body:['Inter','sans-serif']}}}}</script>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Poppins:wght@400;500;600;700;900&display=swap" rel="stylesheet">
 <style>
-*{margin:0;padding:0;box-sizing:border-box;font-family:'Inter',sans-serif}
-body{min-height:100vh;display:flex;align-items:center;justify-content:center;
-  background:linear-gradient(160deg,#0c1222 0%,#111827 40%,#1e3a5f 100%);
-  overflow:hidden}
-.logo{width:56px;height:56px;background:linear-gradient(135deg,#2563eb,#1d4ed8);
-  border-radius:16px;display:flex;align-items:center;justify-content:center;
-  box-shadow:0 8px 32px rgba(37,99,235,.4)}
-.card{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);
-  border-radius:20px;padding:40px 32px;text-align:center;cursor:pointer;
-  transition:all .35s cubic-bezier(.4,0,.2,1);text-decoration:none;display:block;
-  backdrop-filter:blur(12px)}
-.card:hover{transform:translateY(-12px);background:rgba(255,255,255,.1);
-  border-color:rgba(255,255,255,.15);box-shadow:0 24px 80px rgba(0,0,0,.4)}
-.icon-box{width:72px;height:72px;border-radius:20px;display:flex;align-items:center;
-  justify-content:center;margin:0 auto 24px;transition:transform .35s ease}
+*{margin:0;padding:0;box-sizing:border-box;font-family:system-ui,-apple-system,sans-serif}
+body{min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(160deg,#0c1222 0%,#111827 40%,#1e3a5f 100%);overflow:hidden}
+.logo{width:56px;height:56px;background:linear-gradient(135deg,#2563eb,#1d4ed8);border-radius:16px;display:flex;align-items:center;justify-content:center;margin:0 auto 20px;box-shadow:0 8px 32px rgba(37,99,235,.4)}
+.logo svg{width:28px;height:28px;color:#fff}
+.card{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:20px;padding:40px 32px;text-align:center;cursor:pointer;transition:all .35s cubic-bezier(.4,0,.2,1);text-decoration:none;display:block;backdrop-filter:blur(12px)}
+.card:hover{transform:translateY(-12px);background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.15);box-shadow:0 24px 80px rgba(0,0,0,.4)}
+.icon-box{width:72px;height:72px;border-radius:20px;display:flex;align-items:center;justify-content:center;margin:0 auto 24px;transition:transform .35s ease}
 .card:hover .icon-box{transform:scale(1.08)}
 .icon-box svg{width:36px;height:36px;color:#fff}
-.btn{display:inline-flex;align-items:center;gap:6px;font-size:14px;font-weight:600;
-  margin-top:16px;transition:color .2s}
+h1{font-size:32px;font-weight:900;color:#fff;letter-spacing:-0.5px;margin-bottom:8px}
+.sub{color:#64748b;font-size:14px}
+.card h2{font-size:18px;font-weight:700;color:#fff;margin-bottom:8px}
+.card p{color:#94a3b8;font-size:13px;line-height:1.5;margin-bottom:4px}
+.btn{display:inline-flex;align-items:center;gap:6px;font-size:14px;font-weight:600;margin-top:16px;transition:color .2s}
 .btn svg{width:16px;height:16px}
-</style></head>
+</style>
+</head>
 <body>
 <div style="max-width:960px;width:100%;padding:0 32px">
-  <!-- Logo + Title -->
   <div style="text-align:center;margin-bottom:56px">
-    <div class="logo" style="margin:0 auto 20px">
-      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 100 4 2 2 0 000-4z"/></svg>
+    <div class="logo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 100 4 2 2 0 000-4z"/></svg>
     </div>
-    <h1 style="font-family:'Poppins',sans-serif;font-size:32px;font-weight:900;color:#fff;letter-spacing:-0.5px">POS Simulator</h1>
-    <p style="color:#64748b;font-size:14px;margin-top:8px">Sistem Point of Sale Indonesia</p>
+    <h1>POS Simulator</h1>
+    <p class="sub">Sistem Point of Sale Indonesia</p>
   </div>
-  <!-- Cards -->
   <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:24px">
-    <!-- Admin -->
     <a href="/admin-login" class="card">
       <div class="icon-box" style="background:linear-gradient(135deg,#ef4444,#dc2626)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
       </div>
-      <h2 style="font-family:'Poppins',sans-serif;font-size:18px;font-weight:700;color:#fff;margin-bottom:8px">Dashboard Admin</h2>
-      <p style="color:#94a3b8;font-size:13px;line-height:1.5;margin-bottom:4px">Kelola produk, laporan, dan pengaturan sistem</p>
+      <h2>Dashboard Admin</h2>
+      <p>Kelola produk, laporan, dan pengaturan sistem</p>
       <div class="btn" style="color:#f87171">Masuk <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5l7 7-7 7"/></svg></div>
     </a>
-    <!-- Kasir -->
     <a href="/kasir" class="card">
       <div class="icon-box" style="background:linear-gradient(135deg,#22c55e,#16a34a)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M2 10h20"/></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M2 10h20"/></svg>
       </div>
-      <h2 style="font-family:'Poppins',sans-serif;font-size:18px;font-weight:700;color:#fff;margin-bottom:8px">Dashboard Kasir</h2>
-      <p style="color:#94a3b8;font-size:13px;line-height:1.5;margin-bottom:4px">Transaksi penjualan langsung tanpa login</p>
+      <h2>Dashboard Kasir</h2>
+      <p>Transaksi penjualan langsung tanpa login</p>
       <div class="btn" style="color:#4ade80">Buka <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5l7 7-7 7"/></svg></div>
     </a>
-    <!-- Customer -->
     <a href="/customer" target="_blank" class="card">
       <div class="icon-box" style="background:linear-gradient(135deg,#3b82f6,#2563eb)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
       </div>
-      <h2 style="font-family:'Poppins',sans-serif;font-size:18px;font-weight:700;color:#fff;margin-bottom:8px">Dashboard Customer</h2>
-      <p style="color:#94a3b8;font-size:13px;line-height:1.5;margin-bottom:4px">Tampilan produk + promosi untuk pelanggan</p>
+      <h2>Dashboard Customer</h2>
+      <p>Tampilan produk + promosi untuk pelanggan</p>
       <div class="btn" style="color:#60a5fa">Tampilan <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5l7 7-7 7"/></svg></div>
     </a>
   </div>
-  <!-- Footer -->
-  <div style="text-align:center;margin-top:48px"><p style="color:#475569;font-size:12px">POS Simulator v2.0 — Built with Go + HTML</p></div>
+  <div style="text-align:center;margin-top:48px"><p style="color:#475569;font-size:12px">POS Simulator v2.2 — Built with Go + HTML</p></div>
 </div>
-</body></html>
+</body>
+</html>

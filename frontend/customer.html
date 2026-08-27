@@ -1,80 +1,106 @@
-<!DOCTYPE html><html lang="id"><head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>Customer Display</title>
-<script src="https://cdn.tailwindcss.com"></script>
-<style>*{font-family:'Segoe UI',system-ui,-apple-system,sans-serif}body{margin:0;height:100vh;overflow:hidden;background:#0f172a}
-@keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}.fade-up{animation:fadeUp .2s ease-out}
-@keyframes slideIn{from{opacity:0;transform:translateX(-20px)}to{opacity:1;transform:translateX(0)}}.slide-in{animation:slideIn .3s ease-out}
-@keyframes pulse-glow{0%,100%{box-shadow:0 0 20px rgba(59,130,246,.3)}50%{box-shadow:0 0 40px rgba(59,130,246,.6)}}.pulse-glow{animation:pulse-glow 2s infinite}
-@keyframes marquee{0%{transform:translateX(100%)}100%{transform:translateX(-100%)}}.marquee{animation:marquee 20s linear infinite}</style>
-</head><body class="flex h-screen">
-<!-- LEFT 50%: Info Pembelian -->
-<div class="w-1/2 flex flex-col bg-gradient-to-b from-slate-900 to-slate-800">
-  <!-- Header -->
-  <div class="bg-slate-800/80 backdrop-blur px-8 py-4 flex justify-between items-center border-b border-slate-700">
-    <div class="flex items-center gap-3">
-      <div class="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center"><span class="text-white font-black">P</span></div>
-      <div><h1 class="text-lg font-bold text-white">POS Simulator</h1><p class="text-slate-400 text-xs">Terima kasih atas kunjungan Anda</p></div>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;font-family:system-ui,-apple-system,sans-serif}
+body{height:100vh;overflow:hidden;background:#0f172a;display:flex}
+@keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+@keyframes slideIn{from{opacity:0;transform:translateX(-20px)}to{opacity:1;transform:translateX(0)}}
+@keyframes pulseGlow{0%,100%{box-shadow:0 0 20px rgba(59,130,246,.3)}50%{box-shadow:0 0 40px rgba(59,130,246,.6)}}
+@keyframes marquee{0%{transform:translateX(100%)}100%{transform:translateX(-100%)}}
+.fade-up{animation:fadeUp .2s ease-out}
+.slide-in{animation:slideIn .3s ease-out}
+.pulse-glow{animation:pulseGlow 2s infinite}
+.marquee{animation:marquee 20s linear infinite}
+.left{width:50%;display:flex;flex-direction:column;background:linear-gradient(to bottom,#0f172a,#1e293b)}
+.right{width:50%;display:flex;flex-direction:column;background:linear-gradient(135deg,#1e3a8a,#312e81,#581c87)}
+.header{background:rgba(30,41,59,.8);backdrop-filter:blur(8px);padding:16px 32px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #334155}
+.header-left{display:flex;align-items:center;gap:12px}
+.logo-box{width:40px;height:40px;background:#2563eb;border-radius:12px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900}
+.header h1{font-size:18px;font-weight:700;color:#fff}
+.header .sub{color:#94a3b8;font-size:12px}
+.clock{font-size:18px;font-weight:700;color:#fff;font-variant-numeric:tabular-nums}
+.clock-date{color:#94a3b8;font-size:12px}
+.status-bar{padding:12px 32px;background:rgba(34,197,94,.1);border-bottom:1px solid rgba(34,197,94,.2);display:flex;align-items:center;gap:8px}
+.status-dot{width:8px;height:8px;background:#22c55e;border-radius:50%}
+.status-text{color:#4ade80;font-weight:600;font-size:14px}
+.status-count{margin-left:auto;color:#4ade80;font-size:12px}
+.items-list{flex:1;overflow-y:auto;padding:16px 32px}
+.items-list::-webkit-scrollbar{width:4px}
+.items-list::-webkit-scrollbar-thumb{background:#475569;border-radius:2px}
+.item-row{background:rgba(51,65,85,.5);border-radius:12px;padding:12px 24px;display:flex;justify-content:space-between;align-items:center;border:1px solid rgba(71,85,105,.5);margin-bottom:8px}
+.item-num{width:32px;height:32px;background:#2563eb;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:13px}
+.item-info{flex:1;margin-left:12px}
+.item-name{color:#fff;font-weight:600}
+.item-qty{color:#94a3b8;font-size:12px}
+.item-price{color:#fff;font-weight:700;font-variant-numeric:tabular-nums}
+.total-bar{background:rgba(30,41,59,.8);backdrop-filter:blur(8px);padding:20px 32px;border-top:1px solid #334155;display:flex;justify-content:space-between;align-items:flex-end}
+.total-label{color:#94a3b8;font-size:14px}
+.total-amount{font-size:48px;font-weight:900;color:#fff;font-variant-numeric:tabular-nums}
+.running-label{color:#94a3b8;font-size:12px}
+.running-amount{font-size:24px;font-weight:700;color:#4ade80;font-variant-numeric:tabular-nums}
+.promo-area{flex:1;display:flex;align-items:center;justify-content:center;padding:32px}
+.promo-content{text-align:center;max-width:400px}
+.promo-icon{width:96px;height:96px;background:rgba(255,255,255,.1);border-radius:24px;display:flex;align-items:center;justify-content:center;margin:0 auto 24px;font-size:48px}
+.promo-title{font-size:32px;font-weight:900;color:#fff;margin-bottom:12px}
+.promo-desc{color:#bfdbfe;font-size:16px;margin-bottom:24px}
+.promo-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:24px}
+.promo-card{background:rgba(255,255,255,.1);backdrop-filter:blur(8px);border-radius:16px;padding:16px;border:1px solid rgba(255,255,255,.2)}
+.promo-card .emoji{font-size:24px;margin-bottom:4px}
+.promo-card .name{color:#fff;font-weight:700;font-size:14px}
+.promo-card .price{color:#facc15;font-weight:700}
+.promo-card .old{color:#94a3b8;font-size:12px;text-decoration:line-through}
+.marquee-bar{overflow:hidden;background:rgba(255,255,255,.05);border-radius:8px;padding:8px 16px}
+.marquee-text{color:#93c5fd;font-size:12px;white-space:nowrap}
+.footer{text-align:center;padding:12px;border-top:1px solid rgba(255,255,255,.1)}
+.footer p{color:rgba(147,197,253,.3);font-size:12px}
+</style>
+</head>
+<body>
+<!-- LEFT: Info Pembelian -->
+<div class="left">
+  <div class="header">
+    <div class="header-left">
+      <div class="logo-box">P</div>
+      <div><h1>POS Simulator</h1><p class="sub">Terima kasih atas kunjungan Anda</p></div>
     </div>
-    <div class="text-right"><p class="text-lg font-bold text-white tabular-nums" id="clock">--:--:--</p><p class="text-slate-400 text-xs" id="date">--</p></div>
+    <div style="text-align:right"><p class="clock" id="clock">--:--:--</p><p class="clock-date" id="date">--</p></div>
   </div>
-  <!-- Status -->
-  <div class="px-8 py-3 bg-green-600/20 border-b border-green-500/30 flex items-center gap-2" id="status-bar">
-    <div class="w-2 h-2 bg-green-500 rounded-full pulse-glow"></div>
-    <span class="text-green-400 font-semibold text-sm" id="status-text">Menunggu transaksi...</span>
-    <span class="ml-auto text-green-400 text-xs" id="tx-count">0 transaksi</span>
+  <div class="status-bar" id="status-bar">
+    <div class="status-dot pulse-glow"></div>
+    <span class="status-text" id="status-text">Menunggu transaksi...</span>
+    <span class="status-count" id="tx-count">0 transaksi</span>
   </div>
-  <!-- Items List -->
-  <div class="flex-1 overflow-y-auto px-8 py-4 space-y-2" id="items-list">
-    <div class="text-center py-20"><p class="text-slate-600 text-lg">Menunggu transaksi baru...</p></div>
+  <div class="items-list" id="items-list">
+    <div style="text-align:center;padding:80px 0"><p style="color:#475569;font-size:18px">Menunggu transaksi baru...</p></div>
   </div>
-  <!-- Total -->
-  <div class="bg-slate-800/80 backdrop-blur px-8 py-5 border-t border-slate-700">
-    <div class="flex justify-between items-end">
-      <div><p class="text-slate-400 text-sm">Total Belanja</p><p class="text-5xl font-black text-white tabular-nums" id="grand-total">Rp 0</p></div>
-      <div class="text-right"><p class="text-slate-400 text-xs" id="payment-badge"></p><p class="text-2xl font-bold text-green-400 tabular-nums" id="running-total">Running: Rp 0</p></div>
-    </div>
+  <div class="total-bar">
+    <div><p class="total-label">Total Belanja</p><p class="total-amount" id="grand-total">Rp 0</p></div>
+    <div style="text-align:right"><p class="running-label" id="payment-badge"></p><p class="running-amount" id="running-total">Running: Rp 0</p></div>
   </div>
 </div>
-<!-- RIGHT 50%: Iklan / Promosi -->
-<div class="w-1/2 flex flex-col bg-gradient-to-br from-blue-900 via-indigo-900 to-purple-900">
-  <!-- Iklan Banner -->
-  <div class="flex-1 flex items-center justify-center p-8">
-    <div class="text-center max-w-md">
-      <div class="w-24 h-24 bg-white/10 rounded-3xl flex items-center justify-center mx-auto mb-6 pulse-glow">
-        <span class="text-5xl">🛍️</span>
+<!-- RIGHT: Promo -->
+<div class="right">
+  <div class="promo-area">
+    <div class="promo-content">
+      <div class="promo-icon pulse-glow">🛍️</div>
+      <h2 class="promo-title">Promo Spesial Hari Ini!</h2>
+      <p class="promo-desc">Dapatkan diskon menarik untuk semua produk pilihan</p>
+      <div class="promo-grid">
+        <div class="promo-card"><p class="emoji">🍜</p><p class="name">Nasi Goreng</p><p class="price">Rp 22.000</p><p class="old">Rp 25.000</p></div>
+        <div class="promo-card"><p class="emoji">🥤</p><p class="name">Es Teh</p><p class="price">Rp 5.000</p><p style="color:#94a3b8;font-size:12px">Harga spesial!</p></div>
       </div>
-      <h2 class="text-3xl font-black text-white mb-3">Promo Spesial Hari Ini!</h2>
-      <p class="text-blue-200 text-lg mb-6">Dapatkan diskon menarik untuk semua produk pilihan</p>
-      <!-- Promo Cards -->
-      <div class="grid grid-cols-2 gap-3 mb-6">
-        <div class="bg-white/10 backdrop-blur rounded-2xl p-4 border border-white/20">
-          <p class="text-2xl mb-1">🍜</p>
-          <p class="text-white font-bold text-sm">Nasi Goreng</p>
-          <p class="text-yellow-400 font-bold">Rp 22.000</p>
-          <p class="text-slate-400 text-xs line-through">Rp 25.000</p>
-        </div>
-        <div class="bg-white/10 backdrop-blur rounded-2xl p-4 border border-white/20">
-          <p class="text-2xl mb-1">🥤</p>
-          <p class="text-white font-bold text-sm">Es Teh</p>
-          <p class="text-yellow-400 font-bold">Rp 5.000</p>
-          <p class="text-slate-400 text-xs">Harga spesial!</p>
-        </div>
-      </div>
-      <!-- Marquee -->
-      <div class="overflow-hidden bg-white/5 rounded-xl py-2 px-4">
-        <p class="text-blue-300 text-xs whitespace-nowrap marquee">🎉 Promo 17 Agustus! Diskon 17% semua makanan! 🎉 Gratis Es Teh untuk pembelian di atas Rp 50.000! 🎉</p>
-      </div>
+      <div class="marquee-bar"><p class="marquee-text marquee">🎉 Promo 17 Agustus! Diskon 17% semua makanan! 🎉 Gratis Es Teh untuk pembelian di atas Rp 50.000! 🎉</p></div>
     </div>
   </div>
-  <!-- Footer -->
-  <div class="text-center py-3 border-t border-white/10">
-    <p class="text-blue-300/50 text-xs">POS Simulator v2.0</p>
-  </div>
+  <div class="footer"><p>POS Simulator v2.2</p></div>
 </div>
 <script>
-let allItems=[], runningTotal=0;
-const WS_URL = "ws://"+location.host+"/ws";
+let allItems=[],runningTotal=0;
+const WS_URL="ws://"+location.host+"/ws";
 
 function updateClock(){const n=new Date();document.getElementById("clock").textContent=n.toLocaleTimeString("id-ID",{hour12:false});document.getElementById("date").textContent=n.toLocaleDateString("id-ID",{weekday:"long",day:"numeric",month:"long",year:"numeric"})}
 setInterval(updateClock,1000);updateClock();
@@ -83,48 +109,47 @@ function connectWS(){
   try{
     const ws=new WebSocket(WS_URL);
     ws.onopen=()=>{document.getElementById("status-text").textContent="Terhubung — Menunggu transaksi..."};
-    ws.onmessage=e=>{
-      const msg=JSON.parse(e.data);
-      if(msg.type==="new_transaction"){handleNewTx(msg.data)}
-    };
+    ws.onmessage=e=>{const msg=JSON.parse(e.data);if(msg.type==="new_transaction")handleNewTx(msg.data)};
     ws.onclose=()=>{document.getElementById("status-text").textContent="Disconnected...";setTimeout(connectWS,3000)};
     ws.onerror=()=>{};
-  }catch{}
+  }catch(e){}
 }
 
 function handleNewTx(tx){
-  // Add items
-  (tx.items||[]).forEach(item=>{
-    allItems.push(item);
-  });
+  (tx.items||[]).forEach(item=>{allItems.push(item)});
   runningTotal=tx.grand_total||0;
   renderItems(tx);
 }
 
 function renderItems(tx){
   const el=document.getElementById("items-list");
-  let html='';
+  let html="";
   allItems.forEach((item,i)=>{
-    html+=`<div class="bg-slate-700/50 rounded-xl px-6 py-3 flex justify-between items-center border border-slate-600/50 slide-in" style="animation-delay:${i*50}ms">
-      <div class="flex items-center gap-3"><span class="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold text-sm">${i+1}</span><div><p class="text-white font-semibold">${item.name}</p><p class="text-slate-400 text-xs">${item.qty} x Rp ${item.price.toLocaleString("id-ID")}</p></div></div>
-      <p class="text-white font-bold tabular-nums">Rp ${(item.subtotal||item.price*item.qty).toLocaleString("id-ID")}</p>
-    </div>`;
+    html+='<div class="item-row slide-in" style="animation-delay:'+i*50+'ms">';
+    html+='<div class="item-num">'+(i+1)+'</div>';
+    html+='<div class="item-info"><p class="item-name">'+item.name+'</p><p class="item-qty">'+item.qty+' x Rp '+item.price.toLocaleString("id-ID")+'</p></div>';
+    html+='<p class="item-price">Rp '+(item.subtotal||item.price*item.qty).toLocaleString("id-ID")+'</p>';
+    html+='</div>';
   });
   el.innerHTML=html;
   el.scrollTop=el.scrollHeight;
-  // Update total
   document.getElementById("grand-total").textContent="Rp "+(tx.grand_total||0).toLocaleString("id-ID");
   document.getElementById("running-total").textContent="Running: Rp "+runningTotal.toLocaleString("id-ID");
   document.getElementById("payment-badge").textContent="💵 "+(tx.payment||"CASH");
   document.getElementById("tx-count").textContent=allItems.length+" item";
-  // Status
-  document.getElementById("status-bar").className="px-8 py-3 bg-blue-600/20 border-b border-blue-500/30 flex items-center gap-2";
+  document.getElementById("status-bar").style.background="rgba(59,130,246,.1)";
+  document.getElementById("status-bar").style.borderBottomColor="rgba(59,130,246,.2)";
   document.getElementById("status-text").textContent="Transaksi baru!";
+  document.getElementById("status-text").style.color="#60a5fa";
   setTimeout(()=>{
-    document.getElementById("status-bar").className="px-8 py-3 bg-green-600/20 border-b border-green-500/30 flex items-center gap-2";
+    document.getElementById("status-bar").style.background="rgba(34,197,94,.1)";
+    document.getElementById("status-bar").style.borderBottomColor="rgba(34,197,94,.2)";
     document.getElementById("status-text").textContent="Menunggu transaksi...";
+    document.getElementById("status-text").style.color="#4ade80";
   },3000);
 }
 
 connectWS();
-</script></body></html>
+</script>
+</body>
+</html>

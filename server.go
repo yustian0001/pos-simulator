@@ -47,6 +47,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 func main() {
 	initDB()
 	defer db.Close()
+	go cleanupSessions()
 
 	mux := http.NewServeMux()
 
@@ -63,6 +64,7 @@ func main() {
 
 	// API routes
 	mux.HandleFunc("/api/login", handleLogin)
+	mux.HandleFunc("/api/logout", handleLogout)
 	mux.HandleFunc("/api/users", adminOnly(handleGetUsers))
 	mux.HandleFunc("/api/products", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "GET" {
@@ -141,6 +143,16 @@ func main() {
 	})
 	mux.HandleFunc("/api/quick-access", handleQuickAccess)
 	mux.HandleFunc("/api/receipt/", handleReceipt)
+	mux.HandleFunc("/api/alerts/low-stock", handleLowStock)
+	mux.HandleFunc("/api/backup", adminOnly(handleBackup))
+	mux.HandleFunc("/api/restore", adminOnly(handleRestore))
+	mux.HandleFunc("/api/settings", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "GET" {
+			handleGetSettings(w, r)
+		} else if r.Method == "PUT" {
+			adminOnly(handleUpdateSettings)(w, r)
+		}
+	})
 	mux.HandleFunc("/ws", handleWebSocket)
 	mux.HandleFunc("/health", handleHealth)
 
@@ -182,8 +194,7 @@ func main() {
 	})
 	mux.HandleFunc("/receipt", frontendHandler("receipt.html"))
 	mux.HandleFunc("/admin-login", frontendHandler("admin-login.html"))
-	mux.HandleFunc("/admin-dashboard", frontendHandler("admin-dashboard.html"))
-	mux.HandleFunc("/dashboard", frontendHandler("dashboard.html"))
+	mux.HandleFunc("/admin-dashboard", frontendHandler("admin.html")) // redirect to admin
 
 	port := "8070"
 	if p := os.Getenv("PORT"); p != "" {
@@ -192,13 +203,12 @@ func main() {
 
 	fmt.Printf("[POS] Server starting on http://localhost:%s/\n", port)
 	fmt.Printf("[POS] Data dir: %s\n", getDataDir())
-	fmt.Printf("[POS] Version: 2.0 (Go)\n")
+	fmt.Printf("[POS] Version: 2.2 (Go)\n")
 
 	// Auto-open browser
 	go func() {
 		time.Sleep(2 * time.Second)
 		url := "http://localhost:" + port + "/"
-		// Cache-bust: timestamp ensures fresh content every launch
 		cacheBust := fmt.Sprintf("%d", time.Now().UnixMilli())
 		freshURL := url + "?v=" + cacheBust
 		fmt.Printf("[POS] Opening browser: %s\n", freshURL)

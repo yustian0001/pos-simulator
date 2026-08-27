@@ -184,6 +184,16 @@ function closeModal(){document.getElementById("payment-modal").style.display="no
 function printReceipt(){if(!lastTxReceipt)return;window.open("/receipt?tx="+lastTxReceipt.id,"_blank","width=400,height=600")}
 
 loadProducts();
+
+// Keyboard shortcuts
+document.addEventListener("keydown",function(e){
+  if(e.target.tagName==="INPUT")return;
+  if(e.key==="F1"){e.preventDefault();document.getElementById("search").focus()}
+  if(e.key==="F9"){e.preventDefault();if(!document.getElementById("btn-pay").disabled)checkout()}
+  if(e.key==="Escape"){closeModal()}
+  if(e.ctrlKey&&e.key==="d"){e.preventDefault();clearCart()}
+  if(e.ctrlKey&&e.key==="/"){e.preventDefault();document.getElementById("search").focus()}
+});
 </script>
 </body>
 </html>

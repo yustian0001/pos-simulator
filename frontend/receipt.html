@@ -31,7 +31,8 @@ body{font-family:'Courier New',monospace;background:#f5f5f5;display:flex;justify
 <div>
 <div class="receipt" id="receipt">
   <div class="header">
-    <h1>POS SIMULATOR</h1>
+    <h1 id="store-name">POS SIMULATOR</h1>
+    <p id="store-address"></p>
     <p id="receipt-date">--</p>
   </div>
   <div class="items" id="receipt-items"></div>
@@ -46,7 +47,7 @@ body{font-family:'Courier New',monospace;background:#f5f5f5;display:flex;justify
   </div>
   <div style="text-align:center;margin-top:6px"><span class="payment-badge" id="r-payment">CASH</span></div>
   <div class="footer">
-    <p>Terima kasih atas kunjungan Anda!</p>
+    <p id="r-footer">Terima kasih atas kunjungan Anda!</p>
     <p style="margin-top:4px" id="r-tx-id">--</p>
   </div>
 </div>
@@ -62,11 +63,13 @@ async function loadReceipt(){
     const r=await fetch('/api/receipt/'+txId+'/');
     if(!r.ok){document.getElementById('receipt-items').innerHTML='<p style="text-align:center;padding:20px">Data tidak ditemukan</p>';return}
     const d=await r.json();
+    if(d.store_name)document.getElementById('store-name').textContent=d.store_name;
+    if(d.address)document.getElementById('store-address').textContent=d.address;
     document.getElementById('receipt-date').textContent=d.date||'--';
     document.getElementById('r-tx-id').textContent=d.tx_id;
     let itemsHtml='';
     (d.items||[]).forEach(it=>{
-      itemsHtml+=`<div class="item"><span class="name">${it.name}</span><span class="qty">${it.qty}x</span><span class="price">${formatRp(it.subtotal||it.price*it.qty)}</span></div>`;
+      itemsHtml+='<div class="item"><span class="name">'+it.name+'</span><span class="qty">'+it.qty+'x</span><span class="price">'+formatRp(it.subtotal||it.price*it.qty)+'</span></div>';
     });
     document.getElementById('receipt-items').innerHTML=itemsHtml;
     document.getElementById('r-subtotal').textContent=formatRp(d.subtotal||0);
@@ -74,6 +77,7 @@ async function loadReceipt(){
     document.getElementById('r-total').textContent=formatRp(d.total||0);
     document.getElementById('r-paid').textContent=formatRp(d.amount_paid||0);
     document.getElementById('r-payment').textContent=d.payment||'CASH';
+    if(d.footer)document.getElementById('r-footer').textContent=d.footer;
     if(d.discount>0){document.getElementById('r-disc-row').style.display='flex';document.getElementById('r-discount').textContent='-'+formatRp(d.discount)}
     if(d.change>0){document.getElementById('r-change-row').style.display='flex';document.getElementById('r-change').textContent=formatRp(d.change)}
   }catch(e){document.getElementById('receipt-items').innerHTML='<p style="text-align:center;padding:20px">Error loading receipt</p>'}
