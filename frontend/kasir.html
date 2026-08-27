@@ -212,15 +212,22 @@ async function loadProducts(search){
 function searchProducts(){loadProducts(document.getElementById("search").value)}
 
 // === CART ===
+function broadcastCart(){
+  var total=cart.reduce(function(s,i){return s+i.price*i.qty},0);
+  var tax=Math.round(total*0.11);
+  var grand=total+tax;
+  var items=cart.map(function(i){return{name:i.name,qty:i.qty,price:i.price}});
+  fetch(API+"/api/ws-broadcast",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({type:"cart_update",data:{items:items,total:grand}})}).catch(function(){});
+}
 function addToCart(id,name,price,stock){
   var ex=cart.find(function(i){return i.product_id===id});
   if(ex){if(ex.qty>=stock){alert("Stok habis!");return}ex.qty++}
   else{cart.push({product_id:id,name:name,price:price,qty:1,stock:stock})}
-  renderCart();
+  renderCart();broadcastCart();
 }
-function removeFromCart(i){cart.splice(i,1);renderCart()}
-function changeQty(i,d){cart[i].qty+=d;if(cart[i].qty<=0)cart.splice(i,1);renderCart()}
-function clearCart(){cart=[];document.getElementById("amount-paid").value="";renderCart()}
+function removeFromCart(i){cart.splice(i,1);renderCart();broadcastCart()}
+function changeQty(i,d){cart[i].qty+=d;if(cart[i].qty<=0)cart.splice(i,1);renderCart();broadcastCart()}
+function clearCart(){cart=[];document.getElementById("amount-paid").value="";renderCart();broadcastCart()}
 
 function renderCart(){
   var el=document.getElementById("cart-items");

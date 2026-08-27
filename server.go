@@ -158,6 +158,7 @@ func main() {
 			adminOnly(handleUpdateSettings)(w, r)
 		}
 	})
+	mux.HandleFunc("/api/ws-broadcast", handleWSBroadcast)
 	mux.HandleFunc("/ws", handleWebSocket)
 	mux.HandleFunc("/health", handleHealth)
 

@@ -788,6 +788,20 @@ func handleGetStats(w http.ResponseWriter, r *http.Request) {
 	}, 200)
 }
 
+func handleWSBroadcast(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		jsonResponse(w, map[string]string{"error": "POST only"}, 405)
+		return
+	}
+	var msg WSMessage
+	if err := decodeJSON(r, &msg); err != nil {
+		jsonResponse(w, map[string]string{"error": "Invalid request"}, 400)
+		return
+	}
+	wsBroadcast(msg)
+	jsonResponse(w, map[string]string{"status": "ok"}, 200)
+}
+
 func handleHealth(w http.ResponseWriter, r *http.Request) {
 	jsonResponse(w, map[string]string{"status": "ok", "service": "pos-server-go", "version": "2.2"}, 200)
 }
