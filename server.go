@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
@@ -227,6 +228,48 @@ func main() {
 			exec.Command("open", freshURL).Start()
 		} else {
 			exec.Command("xdg-open", freshURL).Start()
+		}
+	}()
+
+	// Auto-start Cloudflare Tunnel if cloudflared.exe exists
+	go func() {
+		time.Sleep(3 * time.Second)
+		exePath, _ := os.Executable()
+		exeDir := filepath.Dir(exePath)
+		cloudflared := filepath.Join(exeDir, "cloudflared.exe")
+		if _, err := os.Stat(cloudflared); os.IsNotExist(err) {
+			return // cloudflared not found, skip
+		}
+		fmt.Printf("[POS] Starting Cloudflare Tunnel...\n")
+		cmd := exec.Command(cloudflared, "tunnel", "--url", "http://localhost:"+port)
+		stdout, _ := cmd.StdoutPipe()
+		cmd.Start()
+		// Read output to find the public URL
+		buf := make([]byte, 4096)
+		n, _ := stdout.Read(buf)
+		output := string(buf[:n])
+		for i := 0; i < 20; i++ { // try up to 20 reads
+			if strings.Contains(output, "https://") {
+				// Extract URL
+				start := strings.Index(output, "https://")
+				end := strings.IndexAny(output[start:], " \n\r")
+				if end == -1 {
+					end = len(output)
+				}
+				publicURL := output[start : start+end]
+				fmt.Printf("[POS] ============================================\n")
+				fmt.Printf("[POS] Remote Admin URL:\n")
+				fmt.Printf("[POS] %s\n", publicURL)
+				fmt.Printf("[POS] Buka link ini dari HP/device lain\n")
+				fmt.Printf("[POS] Login: admin / admin123\n")
+				fmt.Printf("[POS] ============================================\n")
+				return
+			}
+			n, _ = stdout.Read(buf)
+			if n > 0 {
+				output += string(buf[:n])
+			}
+			time.Sleep(500 * time.Millisecond)
 		}
 	}()
 
