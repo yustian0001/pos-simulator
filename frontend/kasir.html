@@ -221,7 +221,7 @@ function searchProducts(){loadProducts(document.getElementById("search").value)}
 async function loadPPN(){try{var r=await fetch("/api/settings");var s=await r.json();if(s.ppn_rate){ppnRate=parseFloat(s.ppn_rate)||11;document.getElementById("ppn-label").textContent="PPN "+ppnRate+"%";}if(s.store_name)document.title=s.store_name+" - Kasir";}catch(e){}}
 var _memberTimer=null;
 async function searchMember(){
-  var q=document.getElementById("member-id").value.trim();
+  var q=document.getElementById("member-id").value.trim().replace(/[^0-9a-zA-Z ]/g,"");
   if(_memberTimer)clearTimeout(_memberTimer);
   if(!q){document.getElementById("member-dropdown").style.display="none";return}
   _memberTimer=setTimeout(async function(){

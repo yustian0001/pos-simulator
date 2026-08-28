@@ -323,6 +323,9 @@ func initDB() {
 	);`
 	db.Exec(tables)
 
+	// Migration: add columns that may not exist in older DBs
+	db.Exec("ALTER TABLE products ADD COLUMN tax_rate REAL DEFAULT -1")
+
 	// Seed data
 	cats := [][2]string{{"Makanan", "🍜"}, {"Minuman", "🥤"}, {"Snack", "🍿"}, {"Lainnya", "📦"}}
 	for _, c := range cats {
