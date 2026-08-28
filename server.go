@@ -6,7 +6,9 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"io"
 	"os/exec"
+	"sync"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -231,7 +233,7 @@ func main() {
 		}
 	}()
 
-	// Auto-start Cloudflare Tunnel if cloudflared.exe exists
+// Auto-start Cloudflare Tunnel if cloudflared.exe exists
 	go func() {
 		time.Sleep(3 * time.Second)
 		exePath, _ := os.Executable()
@@ -242,25 +244,50 @@ func main() {
 		}
 		fmt.Printf("[POS] Starting Cloudflare Tunnel...\n")
 		cmd := exec.Command(cloudflared, "tunnel", "--url", "http://localhost:"+port)
-		cmd.Stderr = nil
-		var tunnelOutput strings.Builder
-		cmd.Stdout = &tunnelOutput
+		stdout, _ := cmd.StdoutPipe()
+		stderr, _ := cmd.StderrPipe()
 		cmd.Start()
 
-		// Wait and read output
-		publicURL := ""
-		for i := 0; i < 30; i++ {
-			time.Sleep(1 * time.Second)
-			out := tunnelOutput.String()
-			// Find trycloudflare.com URL
-			for _, line := range strings.Split(out, "\n") {
-				line = strings.TrimSpace(line)
-				if strings.HasPrefix(line, "https://") && strings.Contains(line, "trycloudflare.com") {
-					publicURL = strings.TrimRight(line, " .,;:!?") + "/admin-login"
+		// Read both stdout and stderr
+		var mu sync.Mutex
+		allOutput := ""
+		readStream := func(r io.Reader) {
+			buf := make([]byte, 1024)
+			for {
+				n, err := r.Read(buf)
+				if n > 0 {
+					mu.Lock()
+					allOutput += string(buf[:n])
+					mu.Unlock()
+				}
+				if err != nil {
 					break
 				}
 			}
-			if publicURL != "" {
+		}
+		go readStream(stdout)
+		go readStream(stderr)
+
+		// Wait up to 15s for URL
+		publicURL := ""
+		for i := 0; i < 15; i++ {
+			time.Sleep(1 * time.Second)
+			mu.Lock()
+			out := allOutput
+			mu.Unlock()
+			if strings.Contains(out, "trycloudflare.com") {
+				for _, line := range strings.Split(out, "\n") {
+					line = strings.TrimSpace(line)
+					for _, word := range strings.Fields(line) {
+						if strings.HasPrefix(word, "https://") && strings.Contains(word, "trycloudflare.com") {
+							publicURL = strings.TrimRight(word, ".,;:!?)") + "/admin-login"
+							break
+						}
+					}
+					if publicURL != "" {
+						break
+					}
+				}
 				break
 			}
 		}
@@ -273,9 +300,11 @@ func main() {
 			fmt.Printf("[POS] Login: admin / admin123\n")
 			fmt.Printf("[POS] ============================================\n")
 		} else {
-			fmt.Printf("[POS] Tunnel started but URL not found. Check cloudflared output.\n")
+			mu.Lock()
+			fmt.Printf("[POS] Cloudflared output:\n%s\n", allOutput)
+			mu.Unlock()
 		}
 	}()
 
-	log.Fatal(http.ListenAndServe(":"+port, mux))
+log.Fatal(http.ListenAndServe(":"+port, mux))
 }
