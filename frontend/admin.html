@@ -86,13 +86,13 @@ tr:hover{background:#f8fafc}
       <h2 style="font-size:18px;font-weight:700">📦 Manajemen Produk</h2>
       <button class="btn btn-green" onclick="showAddProduct()">+ Tambah</button>
     </div>
-    <table><thead><tr><th>SKU</th><th>Nama</th><th style="text-align:right">Harga</th><th style="text-align:center">Stok</th><th>Kategori</th><th style="text-align:center">Promo</th><th style="text-align:center">Aksi</th></tr></thead><tbody id="products-table"></tbody></table>
+    <table><thead><tr><th class="sortable" onclick="sortTable('products-table',0)">SKU</th><th class="sortable" onclick="sortTable('products-table',1)">Nama</th><th class="sortable" onclick="sortTable('products-table',2,'num')" style="text-align:right">Harga</th><th class="sortable" onclick="sortTable('products-table',3,'num')" style="text-align:center">Stok</th><th class="sortable" onclick="sortTable('products-table',4)">Kategori</th><th style="text-align:center">Promo</th><th style="text-align:center">Aksi</th></tr></thead><tbody id="products-table"></tbody></table>
   </div>
 
   <!-- SHIFTS -->
   <div id="panel-shifts" class="card hidden">
     <h2 style="font-size:18px;font-weight:700;margin-bottom:12px">📋 Laporan Shift</h2>
-    <table><thead><tr><th>ID</th><th>Shift</th><th>Kasir</th><th style="text-align:right">Opening</th><th style="text-align:right">Cash Sales</th><th style="text-align:right">Expected</th><th style="text-align:right">Closing</th><th style="text-align:right">Disc</th><th style="text-align:center">Status</th></tr></thead><tbody id="shifts-table"></tbody></table>
+    <table><thead><tr><th class="sortable" onclick="sortTable('shifts-table',0)">ID</th><th class="sortable" onclick="sortTable('shifts-table',1)">Shift</th><th class="sortable" onclick="sortTable('shifts-table',2)">Kasir</th><th class="sortable" onclick="sortTable('shifts-table',3,'num')" style="text-align:right">Opening</th><th class="sortable" onclick="sortTable('shifts-table',4,'num')" style="text-align:right">Cash Sales</th><th class="sortable" onclick="sortTable('shifts-table',5,'num')" style="text-align:right">Expected</th><th class="sortable" onclick="sortTable('shifts-table',6,'num')" style="text-align:right">Closing</th><th class="sortable" onclick="sortTable('shifts-table',7,'num')" style="text-align:right">Disc</th><th class="sortable" onclick="sortTable('shifts-table',8)">Status</th></tr></thead><tbody id="shifts-table"></tbody></table>
   </div>
 
   <!-- CASH -->
@@ -116,7 +116,7 @@ tr:hover{background:#f8fafc}
       <h2 style="font-size:18px;font-weight:700">🧾 Transaksi</h2>
       <div style="display:flex;gap:8px"><input type="date" id="tx-date" style="border:1px solid #d1d5db;border-radius:8px;padding:6px 12px;font-size:12px" onchange="loadTransactions()"><button class="btn btn-primary btn-sm" onclick="loadTransactions()">Filter</button></div>
     </div>
-    <table><thead><tr><th>TX ID</th><th>Waktu</th><th style="text-align:right">Total</th><th>Bayar</th><th>Kasir</th><th style="text-align:center">Status</th><th style="text-align:center">Aksi</th></tr></thead><tbody id="tx-table"></tbody></table>
+    <table><thead><tr><th class="sortable" onclick="sortTable('tx-table',0)">TX ID</th><th class="sortable" onclick="sortTable('tx-table',1)">Waktu</th><th class="sortable" onclick="sortTable('tx-table',2,'num')" style="text-align:right">Total</th><th class="sortable" onclick="sortTable('tx-table',3)">Bayar</th><th class="sortable" onclick="sortTable('tx-table',4)">Kasir</th><th class="sortable" onclick="sortTable('tx-table',5)">Status</th><th style="text-align:center">Aksi</th></tr></thead><tbody id="tx-table"></tbody></table>
   </div>
 
   <!-- DAILY REPORT -->
