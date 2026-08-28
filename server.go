@@ -6,9 +6,7 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"io"
 	"os/exec"
-	"sync"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -243,66 +241,15 @@ func main() {
 			return
 		}
 		fmt.Printf("[POS] Starting Cloudflare Tunnel...\n")
-		cmd := exec.Command(cloudflared, "tunnel", "--url", "http://localhost:"+port)
-		stdout, _ := cmd.StdoutPipe()
-		stderr, _ := cmd.StderrPipe()
-		cmd.Start()
-
-		// Read both stdout and stderr
-		var mu sync.Mutex
-		allOutput := ""
-		readStream := func(r io.Reader) {
-			buf := make([]byte, 1024)
-			for {
-				n, err := r.Read(buf)
-				if n > 0 {
-					mu.Lock()
-					allOutput += string(buf[:n])
-					mu.Unlock()
-				}
-				if err != nil {
-					break
-				}
-			}
-		}
-		go readStream(stdout)
-		go readStream(stderr)
-
-		// Wait up to 15s for URL
-		publicURL := ""
-		for i := 0; i < 30; i++ {
-			time.Sleep(1 * time.Second)
-			mu.Lock()
-			out := allOutput
-			mu.Unlock()
-			if strings.Contains(out, "https://") {
-				for _, line := range strings.Split(out, "\n") {
-					line = strings.TrimSpace(line)
-					for _, word := range strings.Fields(line) {
-						if strings.HasPrefix(word, "https://") && strings.Contains(word, "trycloudflare.com") {
-							publicURL = strings.TrimRight(word, ".,;:!?)") + "/admin-login"
-							break
-						}
-					}
-					if publicURL != "" {
-						break
-					}
-				}
-				break
-			}
-		}
-
-		if publicURL != "" {
-			fmt.Printf("[POS] ============================================\n")
-			fmt.Printf("[POS] Remote Admin URL:\n")
-			fmt.Printf("[POS] %s\n", publicURL)
-			fmt.Printf("[POS] Buka link ini dari HP/device lain\n")
-			fmt.Printf("[POS] Login: admin / admin123\n")
-			fmt.Printf("[POS] ============================================\n")
+		fmt.Printf("[POS] Buka terminal cloudflared untuk lihat URL\n")
+		fmt.Printf("[POS] Atau jalankan manual: cloudflared tunnel --url http://localhost:%s\n", port)
+		// Open cloudflared in separate console window
+		if runtime.GOOS == "windows" {
+			cmd := exec.Command("cmd", "/c", "start", "cmd", "/k", cloudflared, "tunnel", "--url", "http://localhost:"+port)
+			cmd.Start()
 		} else {
-			mu.Lock()
-			fmt.Printf("[POS] Cloudflared output:\n%s\n", allOutput)
-			mu.Unlock()
+			cmd := exec.Command(cloudflared, "tunnel", "--url", "http://localhost:"+port)
+			cmd.Start()
 		}
 	}()
 
