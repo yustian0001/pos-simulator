@@ -238,40 +238,42 @@ func main() {
 		exeDir := filepath.Dir(exePath)
 		cloudflared := filepath.Join(exeDir, "cloudflared.exe")
 		if _, err := os.Stat(cloudflared); os.IsNotExist(err) {
-			return // cloudflared not found, skip
+			return
 		}
 		fmt.Printf("[POS] Starting Cloudflare Tunnel...\n")
-			
 		cmd := exec.Command(cloudflared, "tunnel", "--url", "http://localhost:"+port)
-		stdout, _ := cmd.StdoutPipe()
-		cmd.Stderr = cmd.Stdout
+		cmd.Stderr = nil
+		var tunnelOutput strings.Builder
+		cmd.Stdout = &tunnelOutput
 		cmd.Start()
-		// Read output to find the public URL
-		buf := make([]byte, 4096)
-		n, _ := stdout.Read(buf)
-		output := string(buf[:n])
-		for i := 0; i < 20; i++ { // try up to 20 reads
-			if strings.Contains(output, "https://") {
-				// Extract URL
-				start := strings.Index(output, "https://")
-				end := strings.IndexAny(output[start:], " \n\r")
-				if end == -1 {
-					end = len(output)
+
+		// Wait and read output
+		publicURL := ""
+		for i := 0; i < 30; i++ {
+			time.Sleep(1 * time.Second)
+			out := tunnelOutput.String()
+			// Find trycloudflare.com URL
+			for _, line := range strings.Split(out, "\n") {
+				line = strings.TrimSpace(line)
+				if strings.HasPrefix(line, "https://") && strings.Contains(line, "trycloudflare.com") {
+					publicURL = strings.TrimRight(line, " .,;:!?") + "/admin-login"
+					break
 				}
-				publicURL := output[start : start+end] + "/admin-login"
-				fmt.Printf("[POS] ============================================\n")
-				fmt.Printf("[POS] Remote Admin URL:\n")
-				fmt.Printf("[POS] %s\n", publicURL)
-				fmt.Printf("[POS] Buka link ini dari HP/device lain\n")
-				fmt.Printf("[POS] Login: admin / admin123\n")
-				fmt.Printf("[POS] ============================================\n")
-				return
 			}
-			n, _ = stdout.Read(buf)
-			if n > 0 {
-				output += string(buf[:n])
+			if publicURL != "" {
+				break
 			}
-			time.Sleep(500 * time.Millisecond)
+		}
+
+		if publicURL != "" {
+			fmt.Printf("[POS] ============================================\n")
+			fmt.Printf("[POS] Remote Admin URL:\n")
+			fmt.Printf("[POS] %s\n", publicURL)
+			fmt.Printf("[POS] Buka link ini dari HP/device lain\n")
+			fmt.Printf("[POS] Login: admin / admin123\n")
+			fmt.Printf("[POS] ============================================\n")
+		} else {
+			fmt.Printf("[POS] Tunnel started but URL not found. Check cloudflared output.\n")
 		}
 	}()
 
