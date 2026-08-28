@@ -243,6 +243,7 @@ func main() {
 		fmt.Printf("[POS] Starting Cloudflare Tunnel...\n")
 		cmd := exec.Command(cloudflared, "tunnel", "--url", "http://localhost:"+port)
 		stdout, _ := cmd.StdoutPipe()
+		cmd.Stderr = cmd.Stdout
 		cmd.Start()
 		// Read output to find the public URL
 		buf := make([]byte, 4096)
