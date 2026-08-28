@@ -270,12 +270,12 @@ func main() {
 
 		// Wait up to 15s for URL
 		publicURL := ""
-		for i := 0; i < 15; i++ {
+		for i := 0; i < 30; i++ {
 			time.Sleep(1 * time.Second)
 			mu.Lock()
 			out := allOutput
 			mu.Unlock()
-			if strings.Contains(out, "trycloudflare.com") {
+			if strings.Contains(out, "https://") {
 				for _, line := range strings.Split(out, "\n") {
 					line = strings.TrimSpace(line)
 					for _, word := range strings.Fields(line) {
