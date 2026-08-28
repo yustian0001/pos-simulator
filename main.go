@@ -13,6 +13,7 @@ import (
 	"time"
 
 	_ "modernc.org/sqlite"
+	_ "github.com/tursodatabase/libsql-client-go/libsql"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -208,6 +209,27 @@ func getDataDir() string {
 }
 
 func initDB() {
+	// Check for Turso cloud URL
+	tursoURL := os.Getenv("TURSO_DATABASE_URL")
+	tursoToken := os.Getenv("TURSO_AUTH_TOKEN")
+
+	if tursoURL != "" && tursoToken != "" {
+		// Turso cloud sync mode
+		connStr := tursoURL + "?authToken=" + tursoToken
+		var err error
+		db, err = sql.Open("libsql", connStr)
+		if err != nil {
+			log.Printf("[POS] Turso connect failed: %v, falling back to local", err)
+			initLocalDB()
+			return
+		}
+		fmt.Printf("[POS] DB: Turso cloud (%s)\n", tursoURL)
+	} else {
+		initLocalDB()
+	}
+}
+
+func initLocalDB() {
 	dir := getDataDir()
 	dbPath := filepath.Join(dir, "pos.db")
 
