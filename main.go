@@ -85,18 +85,19 @@ func generateID(prefix string, length int) string {
 }
 
 type Product struct {
-	ID          int    `json:"id"`
-	SKU         string `json:"sku"`
-	Name        string `json:"name"`
-	Price       int    `json:"price"`
-	Cost        int    `json:"cost,omitempty"`
-	Category    string `json:"category"`
-	Stock       int    `json:"stock"`
-	Unit        string `json:"unit"`
-	Barcode     string `json:"barcode"`
-	PromoPrice  int    `json:"promo_price"`
-	PromoActive int    `json:"promo_active"`
-	Active      int    `json:"active"`
+	ID          int     `json:"id"`
+	SKU         string  `json:"sku"`
+	Name        string  `json:"name"`
+	Price       int     `json:"price"`
+	Cost        int     `json:"cost,omitempty"`
+	Category    string  `json:"category"`
+	Stock       int     `json:"stock"`
+	Unit        string  `json:"unit"`
+	Barcode     string  `json:"barcode"`
+	PromoPrice  int     `json:"promo_price"`
+	PromoActive int     `json:"promo_active"`
+	TaxRate     float64 `json:"tax_rate"`
+	Active      int     `json:"active"`
 }
 
 type Transaction struct {
@@ -256,6 +257,7 @@ func initDB() {
 		category TEXT DEFAULT 'Umum', stock INTEGER DEFAULT 0,
 		unit TEXT DEFAULT 'pcs', barcode TEXT DEFAULT '',
 		promo_price INTEGER DEFAULT 0, promo_active INTEGER DEFAULT 0,
+		tax_rate REAL DEFAULT -1,
 		active INTEGER DEFAULT 1, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 	);
 	CREATE TABLE IF NOT EXISTS categories (
@@ -330,19 +332,20 @@ func initDB() {
 	products := []struct {
 		sku, name, cat, unit, barcode string
 		price, cost, stock, promoPrice, promoActive int
+		taxRate float64
 	}{
-		{"PRD001", "Nasi Goreng", "Makanan", "pcs", "899001", 25000, 15000, 50, 22000, 1},
-		{"PRD002", "Ayam Geprek", "Makanan", "pcs", "899002", 35000, 20000, 30, 0, 0},
-		{"PRD003", "Es Teh", "Minuman", "pcs", "899003", 5000, 2000, 100, 0, 0},
-		{"PRD004", "Nasi Uduk", "Makanan", "pcs", "899004", 25000, 15000, 40, 0, 0},
-		{"PRD005", "Jus Alpukat", "Minuman", "pcs", "899005", 15000, 8000, 25, 0, 0},
-		{"PRD006", "Indomie Goreng", "Makanan", "pcs", "899006", 8000, 5000, 80, 0, 0},
-		{"PRD007", "Kopi Susu", "Minuman", "pcs", "899007", 18000, 10000, 60, 0, 0},
-		{"PRD008", "Keripik Singkong", "Snack", "pcs", "899008", 10000, 5000, 45, 0, 0},
+		{"PRD001", "Nasi Goreng", "Makanan", "pcs", "899001", 25000, 15000, 50, 22000, 1, -1},
+		{"PRD002", "Ayam Geprek", "Makanan", "pcs", "899002", 35000, 20000, 30, 0, 0, -1},
+		{"PRD003", "Es Teh", "Minuman", "pcs", "899003", 5000, 2000, 100, 0, 0, 0},
+		{"PRD004", "Nasi Uduk", "Makanan", "pcs", "899004", 25000, 15000, 40, 0, 0, -1},
+		{"PRD005", "Jus Alpukat", "Minuman", "pcs", "899005", 15000, 8000, 25, 0, 0, -1},
+		{"PRD006", "Indomie Goreng", "Makanan", "pcs", "899006", 8000, 5000, 80, 0, 0, -1},
+		{"PRD007", "Kopi Susu", "Minuman", "pcs", "899007", 18000, 10000, 60, 0, 0, -1},
+		{"PRD008", "Keripik Singkong", "Snack", "pcs", "899008", 10000, 5000, 45, 0, 0, -1},
 	}
 	for _, p := range products {
-		db.Exec("INSERT OR IGNORE INTO products (sku,name,price,cost,category,stock,unit,barcode,promo_price,promo_active) VALUES (?,?,?,?,?,?,?,?,?,?)",
-			p.sku, p.name, p.price, p.cost, p.cat, p.stock, p.unit, p.barcode, p.promoPrice, p.promoActive)
+		db.Exec("INSERT OR IGNORE INTO products (sku,name,price,cost,category,stock,unit,barcode,promo_price,promo_active,tax_rate) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+			p.sku, p.name, p.price, p.cost, p.cat, p.stock, p.unit, p.barcode, p.promoPrice, p.promoActive, p.taxRate)
 	}
 
 	// Seed users with bcrypt-hashed passwords

@@ -144,9 +144,9 @@ func handleGetUsers(w http.ResponseWriter, r *http.Request) {
 // === Products ===
 func handleGetProducts(w http.ResponseWriter, r *http.Request) {
 	isAdmin := r.URL.Query().Get("admin") == "1"
-	q := "SELECT id,sku,name,price,category,stock,unit,barcode,promo_price,promo_active,active FROM products WHERE active=1"
+	q := "SELECT id,sku,name,price,category,stock,unit,barcode,promo_price,promo_active,tax_rate,active FROM products WHERE active=1"
 	if isAdmin {
-		q = "SELECT id,sku,name,price,cost,category,stock,unit,barcode,promo_price,promo_active,active FROM products WHERE active=1"
+		q = "SELECT id,sku,name,price,cost,category,stock,unit,barcode,promo_price,promo_active,tax_rate,active FROM products WHERE active=1"
 	}
 	var args []interface{}
 	if cat := r.URL.Query().Get("category"); cat != "" && cat != "Semua" {
@@ -169,13 +169,14 @@ func handleGetProducts(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		if isAdmin {
 			var p Product
-			rows.Scan(&p.ID, &p.SKU, &p.Name, &p.Price, &p.Cost, &p.Category, &p.Stock, &p.Unit, &p.Barcode, &p.PromoPrice, &p.PromoActive, &p.Active)
-			products = append(products, map[string]interface{}{"id": p.ID, "sku": p.SKU, "name": p.Name, "price": p.Price, "cost": p.Cost, "category": p.Category, "stock": p.Stock, "unit": p.Unit, "barcode": p.Barcode, "promo_price": p.PromoPrice, "promo_active": p.PromoActive, "active": p.Active})
+			rows.Scan(&p.ID, &p.SKU, &p.Name, &p.Price, &p.Cost, &p.Category, &p.Stock, &p.Unit, &p.Barcode, &p.PromoPrice, &p.PromoActive, &p.TaxRate, &p.Active)
+			products = append(products, map[string]interface{}{"id": p.ID, "sku": p.SKU, "name": p.Name, "price": p.Price, "cost": p.Cost, "category": p.Category, "stock": p.Stock, "unit": p.Unit, "barcode": p.Barcode, "promo_price": p.PromoPrice, "promo_active": p.PromoActive, "tax_rate": p.TaxRate, "active": p.Active})
 		} else {
 			var id, price, stock, promoPrice, promoActive, active int
 			var sku, name, category, unit, barcode string
-			rows.Scan(&id, &sku, &name, &price, &category, &stock, &unit, &barcode, &promoPrice, &promoActive, &active)
-			products = append(products, map[string]interface{}{"id": id, "sku": sku, "name": name, "price": price, "category": category, "stock": stock, "unit": unit, "barcode": barcode, "promo_price": promoPrice, "promo_active": promoActive, "active": active})
+			var taxRate float64
+			rows.Scan(&id, &sku, &name, &price, &category, &stock, &unit, &barcode, &promoPrice, &promoActive, &taxRate, &active)
+			products = append(products, map[string]interface{}{"id": id, "sku": sku, "name": name, "price": price, "category": category, "stock": stock, "unit": unit, "barcode": barcode, "promo_price": promoPrice, "promo_active": promoActive, "tax_rate": taxRate, "active": active})
 		}
 	}
 	if products == nil {
@@ -215,8 +216,8 @@ func handleAddProduct(w http.ResponseWriter, r *http.Request) {
 		jsonResponse(w, map[string]string{"error": "Nama dan SKU wajib diisi"}, 400)
 		return
 	}
-	_, err := db.Exec("INSERT INTO products (sku,name,price,cost,category,stock,unit,barcode) VALUES (?,?,?,?,?,?,?,?)",
-		p.SKU, p.Name, p.Price, p.Cost, p.Category, p.Stock, p.Unit, p.Barcode)
+	_, err := db.Exec("INSERT INTO products (sku,name,price,cost,category,stock,unit,barcode,tax_rate) VALUES (?,?,?,?,?,?,?,?,?)",
+		p.SKU, p.Name, p.Price, p.Cost, p.Category, p.Stock, p.Unit, p.Barcode, p.TaxRate)
 	if err != nil {
 		logError("handleAddProduct", err)
 		jsonResponse(w, map[string]string{"error": "Gagal tambah produk"}, 500)
@@ -236,8 +237,8 @@ func handleUpdateProduct(w http.ResponseWriter, r *http.Request) {
 		jsonResponse(w, map[string]string{"error": "Invalid request"}, 400)
 		return
 	}
-	_, err := db.Exec("UPDATE products SET name=?,price=?,cost=?,category=?,stock=?,unit=?,barcode=?,promo_price=?,promo_active=? WHERE id=?",
-		p.Name, p.Price, p.Cost, p.Category, p.Stock, p.Unit, p.Barcode, p.PromoPrice, p.PromoActive, id)
+	_, err := db.Exec("UPDATE products SET name=?,price=?,cost=?,category=?,stock=?,unit=?,barcode=?,promo_price=?,promo_active=?,tax_rate=? WHERE id=?",
+		p.Name, p.Price, p.Cost, p.Category, p.Stock, p.Unit, p.Barcode, p.PromoPrice, p.PromoActive, p.TaxRate, id)
 	if err != nil {
 		logError("handleUpdateProduct", err)
 		jsonResponse(w, map[string]string{"error": "Gagal update produk"}, 500)
@@ -515,12 +516,13 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 	txID := generateID("TX", 8)
 	total := 0
 	type checkoutItem struct {
-		Name     string `json:"name"`
-		Qty      int    `json:"qty"`
-		Price    int    `json:"price"`
-		Discount int    `json:"discount"`
-		Subtotal int    `json:"subtotal"`
-		Notes    string `json:"notes"`
+		Name     string  `json:"name"`
+		Qty      int     `json:"qty"`
+		Price    int     `json:"price"`
+		Discount int     `json:"discount"`
+		Subtotal int     `json:"subtotal"`
+		TaxRate  float64 `json:"tax_rate"`
+		Notes    string  `json:"notes"`
 	}
 	var items []checkoutItem
 
@@ -538,8 +540,8 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		var p Product
-		err := sqlTx.QueryRow("SELECT id,name,price,promo_price,promo_active,stock FROM products WHERE id=? AND active=1", ci.ProductID).
-			Scan(&p.ID, &p.Name, &p.Price, &p.PromoPrice, &p.PromoActive, &p.Stock)
+		err := sqlTx.QueryRow("SELECT id,name,price,promo_price,promo_active,stock,tax_rate FROM products WHERE id=? AND active=1", ci.ProductID).
+			Scan(&p.ID, &p.Name, &p.Price, &p.PromoPrice, &p.PromoActive, &p.Stock, &p.TaxRate)
 		if err != nil || p.Stock < ci.Qty {
 			continue
 		}
@@ -549,7 +551,7 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 		}
 		sub := (effectivePrice - ci.Discount) * ci.Qty
 		total += sub
-		items = append(items, checkoutItem{Name: p.Name, Qty: ci.Qty, Price: effectivePrice, Discount: ci.Discount, Subtotal: sub, Notes: ci.Notes})
+		items = append(items, checkoutItem{Name: p.Name, Qty: ci.Qty, Price: effectivePrice, Discount: ci.Discount, Subtotal: sub, TaxRate: p.TaxRate, Notes: ci.Notes})
 		sqlTx.Exec("INSERT INTO tx_items (tx_id,product_id,name,qty,price,discount,subtotal,notes) VALUES (?,?,?,?,?,?,?,?)",
 			txID, ci.ProductID, p.Name, ci.Qty, effectivePrice, ci.Discount, sub, ci.Notes)
 		sqlTx.Exec("UPDATE products SET stock=stock-? WHERE id=? AND stock>=?", ci.Qty, ci.ProductID, ci.Qty)
@@ -561,15 +563,26 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 	}
 
 	discount := req.Discount
-	var ppnRate float64 = 11
+	// Per-product tax calculation
+	var globalTaxRate float64 = 11
 	var ppnStr string
 	db.QueryRow("SELECT value FROM settings WHERE key='ppn_rate'").Scan(&ppnStr)
 	if ppnStr != "" {
 		if v, err := strconv.ParseFloat(ppnStr, 64); err == nil {
-			ppnRate = v
+			globalTaxRate = v
 		}
 	}
-	tax := int(math.Round(float64(total-discount) * ppnRate / 100))
+	totalTax := 0
+	for _, it := range items {
+		var taxRate float64
+		if it.TaxRate >= 0 {
+			taxRate = it.TaxRate
+		} else {
+			taxRate = globalTaxRate
+		}
+		totalTax += int(math.Round(float64(it.Subtotal) * taxRate / 100))
+	}
+	tax := totalTax
 	grandTotal := total - discount + tax
 	amountPaid := req.AmountPaid
 	if amountPaid == 0 {

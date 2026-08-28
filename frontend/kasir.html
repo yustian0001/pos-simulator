@@ -219,24 +219,43 @@ function searchProducts(){loadProducts(document.getElementById("search").value)}
 
 // === CART ===
 async function loadPPN(){try{var r=await fetch("/api/settings");var s=await r.json();if(s.ppn_rate){ppnRate=parseFloat(s.ppn_rate)||11;document.getElementById("ppn-label").textContent="PPN "+ppnRate+"%";}if(s.store_name)document.title=s.store_name+" - Kasir";}catch(e){}}
-async function lookupMember(){
-  var mid=document.getElementById("member-id").value.trim();
-  if(!mid)return;
-  try{
-    var r=await fetch(API+"/api/members/"+mid);
-    if(r.ok){
-      var m=await r.json();
-      activeMember=m;
-      document.getElementById("member-info").style.display="block";
-      document.getElementById("member-name").textContent=m.name;
-      document.getElementById("member-tier").textContent=m.tier.toUpperCase();
-      document.getElementById("member-points").textContent=m.points.toLocaleString("id-ID")+" poin";
-    }else{
-      activeMember=null;
-      document.getElementById("member-info").style.display="none";
-      alert("Member tidak ditemukan");
-    }
-  }catch(e){activeMember=null;document.getElementById("member-info").style.display="none"}
+var _memberTimer=null;
+async function searchMember(){
+  var q=document.getElementById("member-id").value.trim();
+  if(_memberTimer)clearTimeout(_memberTimer);
+  if(!q){document.getElementById("member-dropdown").style.display="none";return}
+  _memberTimer=setTimeout(async function(){
+    try{
+      var r=await fetch(API+"/api/members?search="+encodeURIComponent(q));
+      var members=await r.json();
+      var dd=document.getElementById("member-dropdown");
+      if(!members.length){dd.innerHTML='<div style="padding:8px;color:#94a3b8;font-size:11px">Tidak ditemukan</div>';dd.style.display="block";return}
+      dd.innerHTML=members.map(function(m){
+        return '<div onclick="selectMember(\''+m.member_id+'\',\''+m.name+'\','+m.points+',\''+m.tier+'\',\''+m.phone+'\')" style="padding:6px 10px;cursor:pointer;border-bottom:1px solid #f1f5f5;font-size:11px;display:flex;justify-content:space-between;align-items:center" onmouseover="this.style.background=\"#f1f5f9\"" onmouseout="this.style.background=\"white\""><div><b>'+m.name+'</b><span style="color:#94a3b8;margin-left:6px">'+m.member_id+'</span></div><div style="color:#64748b">'+(m.phone||'')+'</div></div>'
+      }).join("");
+      dd.style.display="block";
+    }catch(e){}
+  },200);
+}
+function selectMember(id,name,points,tier,phone){
+  activeMember={member_id:id,name:name,points:points,tier:tier,phone:phone};
+  document.getElementById("member-id").value=id;
+  document.getElementById("member-dropdown").style.display="none";
+  document.getElementById("member-info").style.display="block";
+  document.getElementById("member-name").textContent=name;
+  document.getElementById("member-tier").textContent=tier.toUpperCase();
+  document.getElementById("member-points").textContent=points.toLocaleString("id-ID")+" poin";
+  document.getElementById("member-phone").textContent=phone||"";
+}
+function selectFirstMember(){
+  var first=document.querySelector("#member-dropdown div:first-child");
+  if(first&&first.onclick)first.click();
+}
+function clearMember(){
+  activeMember=null;
+  document.getElementById("member-id").value="";
+  document.getElementById("member-dropdown").style.display="none";
+  document.getElementById("member-info").style.display="none";
 }
 
 function broadcastCart(){
