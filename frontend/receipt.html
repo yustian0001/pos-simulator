@@ -6,41 +6,42 @@
 <title>Struk Belanja</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Courier New',monospace;background:#f5f5f5;display:flex;justify-content:center;padding:20px}
+body{font-family:'Courier New',Consolas,monospace;background:#f5f5f5;display:flex;justify-content:center;padding:20px}
 .receipt{background:#fff;width:300px;padding:16px;box-shadow:0 2px 10px rgba(0,0,0,.1);border:1px dashed #ccc}
 .header{text-align:center;border-bottom:2px dashed #333;padding-bottom:8px;margin-bottom:8px}
-.header h1{font-size:16px;letter-spacing:2px}
-.header p{font-size:10px;color:#666}
-.header .addr{font-size:9px;color:#999}
+.header h1{font-size:16px;letter-spacing:2px;font-weight:900}
+.header p{font-size:10px;color:#666;font-weight:600}
+.header .addr{font-size:9px;color:#999;font-weight:600}
 .items{margin:8px 0}
-.item{display:flex;justify-content:space-between;font-size:11px;margin:3px 0}
+.item{display:flex;justify-content:space-between;font-size:11px;margin:3px 0;font-weight:600}
 .item .name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:6px}
 .item .qty{width:28px;text-align:center}
 .item .price{width:75px;text-align:right}
-.divider{border-top:1px dashed #999;margin:6px 0}
-.summary{font-size:11px}
+.divider{border-top:2px dashed #333;margin:6px 0}
+.summary{font-size:11px;font-weight:700}
 .summary .row{display:flex;justify-content:space-between;margin:2px 0}
-.summary .total{font-size:14px;font-weight:bold;border-top:2px dashed #333;padding-top:5px;margin-top:5px}
-.footer{text-align:center;font-size:9px;color:#999;margin-top:10px;border-top:2px dashed #333;padding-top:8px}
-.payment-badge{display:inline-block;background:#2563eb;color:#fff;padding:2px 6px;border-radius:3px;font-size:9px;margin-top:3px}
+.summary .total{font-size:14px;font-weight:900;border-top:2px dashed #333;padding-top:5px;margin-top:5px}
+.footer{text-align:center;font-size:9px;color:#666;margin-top:10px;border-top:2px dashed #333;padding-top:8px;font-weight:600}
+.payment-badge{display:inline-block;background:#2563eb;color:#fff;padding:2px 6px;border-radius:3px;font-size:9px;margin-top:3px;font-weight:700}
 .back-btn{display:block;text-align:center;margin-top:12px;padding:8px;background:#333;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-family:inherit}
 .back-btn:hover{background:#555}
+.print-actions{text-align:center;margin-top:12px}
 
-/* === PRINT CSS: 58mm thermal printer === */
+/* === PRINT: 58mm thermal — font TEBAL === */
 @media print{
-  @page{size:80mm auto;margin:0} /* 80mm paper, 58mm print area */
-  body{background:#fff;padding:0;margin:0;display:block}
-  .receipt{width:58mm;max-width:58mm;padding:2mm 3mm;box-shadow:none;border:none;font-size:10px;line-height:1.3}
-  .header h1{font-size:12px;letter-spacing:1px}
-  .header p{font-size:8px}
-  .item{font-size:9px;margin:1px 0}
-  .summary{font-size:9px}
-  .summary .total{font-size:11px}
-  .footer{font-size:8px}
-  .back-btn{display:none!important}
-  .print-actions{display:none!important}
-  /* Cut paper simulation */
-  .cut-line{border-top:2px dashed #000;margin-top:8px;padding-top:4px;text-align:center;font-size:7px;color:#999}
+  @page{size:58mm auto;margin:0}
+  *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  body{background:#fff;padding:0;margin:0;display:block;font-weight:700}
+  .receipt{width:58mm;max-width:58mm;padding:2mm 3mm;box-shadow:none;border:none;font-weight:700}
+  .header h1{font-size:14px;letter-spacing:1px;font-weight:900}
+  .header p,.header .addr{font-weight:700}
+  .item{font-size:10px;margin:1px 0;font-weight:700}
+  .summary{font-size:10px;font-weight:700}
+  .summary .row{font-weight:700}
+  .summary .total{font-size:12px;font-weight:900}
+  .footer{font-size:8px;font-weight:700}
+  .payment-badge{font-weight:800}
+  .back-btn,.print-actions,.cut-line{display:none!important}
 }
 </style>
 </head>
@@ -57,7 +58,7 @@ body{font-family:'Courier New',monospace;background:#f5f5f5;display:flex;justify
   <div class="summary">
     <div class="row"><span>Subtotal</span><span id="r-subtotal">Rp 0</span></div>
     <div class="row" id="r-disc-row" style="display:none;color:red"><span>Diskon</span><span id="r-discount">-Rp 0</span></div>
-    <div class="row"><span>PPN 11%</span><span id="r-tax">Rp 0</span></div>
+    <div class="row"><span id="ppn-label">PPN 11%</span><span id="r-tax">Rp 0</span></div>
     <div class="row total"><span>TOTAL</span><span id="r-total">Rp 0</span></div>
     <div class="row"><span>Bayar</span><span id="r-paid">Rp 0</span></div>
     <div class="row" id="r-change-row" style="display:none"><span>Kembali</span><span id="r-change">Rp 0</span></div>
@@ -67,7 +68,7 @@ body{font-family:'Courier New',monospace;background:#f5f5f5;display:flex;justify
     <p id="r-footer">Terima kasih atas kunjungan Anda!</p>
     <p style="margin-top:3px" id="r-tx-id">--</p>
   </div>
-  <div class="cut-line">✂ --- potong di sini --- ✂</div>
+  <div class="cut-line" style="text-align:center;font-size:8px;color:#ccc;margin-top:6px">- - - - - - - - - - - - -</div>
 </div>
 <div class="print-actions">
   <button class="back-btn" onclick="doPrint()" style="background:#2563eb">🖨 Print Struk</button>
@@ -103,8 +104,10 @@ async function loadReceipt(){
     if(d.footer)document.getElementById('r-footer').textContent=d.footer;
     if(d.discount>0){document.getElementById('r-disc-row').style.display='flex';document.getElementById('r-discount').textContent='-'+formatRp(d.discount)}
     if(d.change>0){document.getElementById('r-change-row').style.display='flex';document.getElementById('r-change').textContent=formatRp(d.change)}
+    // Load PPN rate
+    try{var sr=await fetch("/api/settings");var s=await sr.json();if(s.ppn_rate)document.getElementById("ppn-label").textContent="PPN "+s.ppn_rate+"%";}catch(e){}
     // Auto-print jika ?autoprint=1
-    if(autoPrint)setTimeout(function(){doPrint()},500);
+    if(autoPrint)setTimeout(function(){doPrint()},300);
   }catch(e){document.getElementById('receipt-items').innerHTML='<p style="text-align:center;padding:20px">Error loading receipt</p>'}
 }
 
