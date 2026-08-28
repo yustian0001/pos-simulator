@@ -4,126 +4,248 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>POS - Kasir</title>
-</head>
-<body style="display:flex;height:100vh;overflow:hidden;background:#f1f5f9;font-family:system-ui,sans-serif;margin:0">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:system-ui,-apple-system,sans-serif;height:100vh;overflow:hidden;background:#f1f5f9;color:#1e293b}
+input,select,button{font-family:inherit}
 
-<!-- LOGIN SCREEN -->
-<div id="login-screen" style="position:fixed;inset:0;background:linear-gradient(135deg,#0f172a,#1e293b,#1d4ed8);display:flex;align-items:center;justify-content:center;z-index:100">
-  <div style="background:#fff;border-radius:20px;padding:32px;width:380px;text-align:center;box-shadow:0 25px 60px rgba(0,0,0,.3)">
-    <div style="width:64px;height:64px;background:linear-gradient(135deg,#22c55e,#16a34a);border-radius:16px;display:flex;align-items:center;justify-content:center;margin:0 auto 16px"><span style="font-size:28px">🛒</span></div>
-    <h2 style="font-size:20px;font-weight:700;margin-bottom:4px">Kasir Login</h2>
-    <p style="color:#64748b;font-size:13px;margin-bottom:20px">Pilih kasir untuk memulai</p>
-    <div style="text-align:left;margin-bottom:12px"><label style="font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:4px">Username</label>
-      <select id="login-user" style="width:100%;border:2px solid #e2e8f0;border-radius:10px;padding:10px 12px;font-size:14px;outline:none"><option value="kasir1">Andi (kasir1)</option><option value="kasir2">Budi (kasir2)</option></select></div>
-    <div style="text-align:left;margin-bottom:16px"><label style="font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:4px">Password</label>
-      <input id="login-pass" type="password" value="kasir123" style="width:100%;border:2px solid #e2e8f0;border-radius:10px;padding:10px 12px;font-size:14px;outline:none"></div>
-    <button onclick="doLogin()" style="width:100%;background:#22c55e;color:#fff;border:none;border-radius:10px;padding:12px;font-size:15px;font-weight:700;cursor:pointer">Masuk</button>
-    <p id="login-error" style="color:#dc2626;font-size:12px;margin-top:10px;display:none"></p>
+/* LOGIN */
+.login-screen{position:fixed;inset:0;background:linear-gradient(135deg,#1e293b 0%,#8B1538 50%,#D4AF37 100%);display:flex;align-items:center;justify-content:center;z-index:100}
+.login-card{background:#fff;border-radius:20px;padding:40px;width:400px;text-align:center;box-shadow:0 25px 60px rgba(0,0,0,.4)}
+.login-icon{width:72px;height:72px;background:linear-gradient(135deg,#8B1538,#D4AF37);border-radius:20px;display:flex;align-items:center;justify-content:center;margin:0 auto 20px;font-size:32px}
+.login-card h2{font-size:22px;font-weight:800;margin-bottom:4px}
+.login-card p{color:#64748b;font-size:13px;margin-bottom:24px}
+.form-group{text-align:left;margin-bottom:16px}
+.form-group label{font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:6px}
+.form-group input,.form-group select{width:100%;border:2px solid #e2e8f0;border-radius:12px;padding:12px 14px;font-size:14px;outline:none;transition:border .2s}
+.form-group input:focus,.form-group select:focus{border-color:#D4AF37}
+.btn-primary{width:100%;background:linear-gradient(135deg,#D4AF37,#b8960c);color:#1e293b;border:none;border-radius:12px;padding:14px;font-size:16px;font-weight:800;cursor:pointer;transition:all .2s}
+.btn-primary:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(212,175,55,.4)}
+
+/* NAVBAR */
+.navbar{background:#1e293b;color:#fff;padding:0 20px;display:flex;justify-content:space-between;align-items:center;height:48px;font-size:12px}
+.navbar a{color:#94a3b8;text-decoration:none;padding:4px 8px;border-radius:6px;transition:all .2s}
+.navbar a:hover{background:rgba(255,255,255,.1);color:#fff}
+.navbar .active{color:#D4AF37;font-weight:700}
+.nav-right{display:flex;align-items:center;gap:16px}
+.nav-info{color:#D4AF37;font-weight:600;font-size:11px}
+.btn-logout{background:#8B1538;color:#fff;border:none;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:11px;font-weight:600;transition:background .2s}
+.btn-logout:hover{background:#a01a45}
+
+/* HEADER */
+.header{background:#fff;padding:12px 20px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #e2e8f0}
+.header-title{font-size:18px;font-weight:800;color:#1e293b}
+.header-title span{color:#D4AF37}
+.search-box{border:2px solid #e2e8f0;border-radius:10px;padding:8px 16px;font-size:13px;width:300px;outline:none;transition:border .2s}
+.search-box:focus{border-color:#D4AF37}
+
+/* PRODUCTS GRID */
+.products-area{flex:2;overflow-y:auto;padding:16px}
+.products-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.product-card{background:#fff;border-radius:14px;padding:16px;cursor:pointer;border:2px solid transparent;transition:all .2s;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.product-card:hover{transform:translateY(-3px);box-shadow:0 8px 24px rgba(0,0,0,.12);border-color:#D4AF37}
+.product-card:active{transform:scale(.97)}
+.product-emoji{font-size:28px;margin-bottom:8px}
+.product-name{font-size:13px;font-weight:700;margin-bottom:4px;line-height:1.3}
+.product-price{font-size:15px;font-weight:800;color:#D4AF37}
+.product-stock{font-size:10px;color:#94a3b8;margin-top:4px}
+.product-stock.low{color:#ef4444;font-weight:600}
+.product-promo{font-size:10px;color:#22c55e;font-weight:600;margin-top:2px}
+
+/* CART PANEL */
+.cart-panel{flex:1;background:#fff;display:flex;flex-direction:column;border-left:1px solid #e2e8f0;min-width:340px}
+.cart-header{background:linear-gradient(135deg,#1e293b,#334155);color:#fff;padding:14px 16px;display:flex;justify-content:space-between;align-items:center}
+.cart-header h3{font-size:15px;font-weight:700}
+.cart-header .count{background:#D4AF37;color:#1e293b;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:800;margin-left:8px}
+.btn-clear{background:#8B1538;color:#fff;border:none;padding:5px 12px;border-radius:8px;cursor:pointer;font-size:11px;font-weight:600;transition:background .2s}
+.btn-clear:hover{background:#a01a45}
+
+/* MEMBER */
+.member-section{padding:8px 16px;background:#f8fafc;border-bottom:1px solid #e2e8f0;position:relative}
+.member-input-row{display:flex;gap:6px}
+.member-input{flex:1;border:2px solid #e2e8f0;border-radius:8px;padding:6px 10px;font-size:12px;outline:none;transition:border .2s}
+.member-input:focus{border-color:#D4AF37}
+.member-clear{background:#ef4444;color:#fff;border:none;padding:6px 10px;border-radius:8px;cursor:pointer;font-size:11px;font-weight:600}
+.member-dropdown{display:none;position:absolute;left:16px;right:16px;top:44px;background:#fff;border:2px solid #e2e8f0;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.12);z-index:10;max-height:180px;overflow-y:auto}
+.member-item{padding:10px 12px;cursor:pointer;border-bottom:1px solid #f1f5f5;display:flex;justify-content:space-between;align-items:center;transition:background .15s}
+.member-item:hover{background:#f8fafc}
+.member-item b{font-size:12px}
+.member-item .phone{color:#94a3b8;font-size:11px}
+.member-info{display:none;padding:6px 16px;background:#dcfce7;border-bottom:1px solid #bbf7d0;font-size:11px;color:#166534}
+
+/* CART ITEMS */
+.cart-items{flex:1;overflow-y:auto;padding:12px}
+.cart-empty{text-align:center;padding:40px 0;color:#94a3b8}
+.cart-empty .icon{font-size:40px;margin-bottom:8px}
+.cart-item{background:#f8fafc;border-radius:10px;padding:10px 12px;display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;border:1px solid #e2e8f0;transition:border .2s}
+.cart-item:hover{border-color:#D4AF37}
+.cart-item-info{flex:1}
+.cart-item-name{font-size:12px;font-weight:700}
+.cart-item-price{font-size:11px;color:#64748b}
+.cart-qty{display:flex;align-items:center;gap:8px}
+.qty-btn{width:28px;height:28px;border:none;border-radius:8px;cursor:pointer;font-weight:700;font-size:14px;display:flex;align-items:center;justify-content:center;transition:all .15s}
+.qty-minus{background:#e2e8f0;color:#475569}
+.qty-minus:hover{background:#cbd5e1}
+.qty-plus{background:#D4AF37;color:#1e293b}
+.qty-plus:hover{background:#c9a10a}
+.qty-value{font-size:13px;font-weight:700;min-width:20px;text-align:center}
+.cart-item-total{font-size:13px;font-weight:700;color:#1e293b;min-width:90px;text-align:right}
+.cart-item-remove{background:none;border:none;color:#ef4444;cursor:pointer;font-size:16px;padding:4px;border-radius:6px;transition:background .15s}
+.cart-item-remove:hover{background:#fef2f2}
+
+/* SUMMARY */
+.cart-summary{padding:12px 16px;background:#f8fafc;border-top:1px solid #e2e8f0}
+.summary-row{display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px}
+.summary-row .label{color:#64748b}
+.summary-row.total{font-size:18px;font-weight:900;border-top:2px solid #e2e8f0;padding-top:8px;margin-top:8px}
+.summary-row.total .value{color:#D4AF37}
+
+/* PAYMENT */
+.payment-btns{display:flex;gap:8px;padding:8px 16px}
+.pay-btn{flex:1;border:none;border-radius:10px;padding:12px;font-weight:700;font-size:12px;cursor:pointer;transition:all .2s;color:#fff}
+.pay-cash{background:#22c55e}
+.pay-cash:hover{background:#16a34a}
+.pay-cash.active{background:#15803d;box-shadow:0 0 0 3px rgba(34,197,94,.3)}
+.pay-qris{background:#a855f7}
+.pay-qris:hover{background:#9333ea}
+.pay-qris.active{background:#7e22ce;box-shadow:0 0 0 3px rgba(168,85,247,.3)}
+.cash-row{display:none;padding:0 16px 8px;gap:8px}
+.cash-row.show{display:flex}
+.cash-input{flex:1;border:2px solid #93c5fd;border-radius:10px;padding:10px;font-size:16px;font-weight:700;outline:none}
+.cash-input:focus{border-color:#3b82f6}
+.change-box{text-align:right;min-width:90px}
+.change-box .label{font-size:10px;color:#94a3b8}
+.change-box .value{font-size:16px;font-weight:700;color:#22c55e}
+.btn-pay{width:calc(100% - 32px);margin:0 16px 16px;border:none;border-radius:14px;padding:16px;font-size:20px;font-weight:900;cursor:pointer;transition:all .2s;background:#D4AF37;color:#1e293b;box-shadow:0 4px 16px rgba(212,175,55,.3)}
+.btn-pay:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(212,175,55,.4)}
+.btn-pay:disabled{background:#e2e8f0;color:#94a3b8;cursor:not-allowed;box-shadow:none;transform:none}
+
+/* MODALS */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:50;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
+.modal-card{background:#fff;border-radius:20px;padding:32px;width:400px;text-align:center;box-shadow:0 25px 60px rgba(0,0,0,.3);animation:slideUp .3s ease-out}
+@keyframes slideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+.modal-icon{font-size:56px;margin-bottom:12px}
+.modal-card h2{font-size:20px;font-weight:800;margin-bottom:4px}
+.modal-card .subtitle{color:#64748b;font-size:12px}
+.modal-card .total{font-size:36px;font-weight:900;color:#D4AF37;margin:12px 0}
+.modal-card .change{color:#22c55e;font-weight:700;font-size:14px}
+.modal-receipt{background:#f8fafc;border-radius:10px;padding:12px;margin:16px 0;font-size:11px;text-align:left;border:1px solid #e2e8f0}
+.btn-modal{width:100%;background:#1e293b;color:#fff;border:none;border-radius:12px;padding:14px;font-size:15px;font-weight:700;cursor:pointer;margin-top:12px;transition:all .2s}
+.btn-modal:hover{background:#334155}
+.qris-img{width:220px;height:220px;border:2px solid #e2e8f0;border-radius:12px;margin:12px auto;display:block}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div class="login-screen" id="login-screen">
+  <div class="login-card">
+    <div class="login-icon">🛒</div>
+    <h2>Kasir Login</h2>
+    <p>Pilih kasir untuk memulai</p>
+    <div class="form-group"><label>Username</label>
+      <select id="login-user"><option value="kasir1">Andi (kasir1)</option><option value="kasir2">Budi (kasir2)</option></select></div>
+    <div class="form-group"><label>Password</label>
+      <input id="login-pass" type="password" value="kasir123"></div>
+    <button class="btn-primary" onclick="doLogin()">Masuk</button>
+    <p id="login-error" style="color:#ef4444;font-size:12px;margin-top:10px;display:none"></p>
     <a href="/" style="color:#94a3b8;font-size:12px;display:inline-block;margin-top:12px;text-decoration:none">← Kembali</a>
   </div>
 </div>
 
-<!-- SHIFT SCREEN -->
-<div id="shift-screen" style="position:fixed;inset:0;background:linear-gradient(135deg,#0f172a,#1e293b,#1d4ed8);display:none;align-items:center;justify-content:center;z-index:99">
-  <div style="background:#fff;border-radius:20px;padding:32px;width:380px;text-align:center;box-shadow:0 25px 60px rgba(0,0,0,.3)">
-    <div style="width:64px;height:64px;background:linear-gradient(135deg,#f59e0b,#d97706);border-radius:16px;display:flex;align-items:center;justify-content:center;margin:0 auto 16px"><span style="font-size:28px">📋</span></div>
-    <h2 style="font-size:20px;font-weight:700;margin-bottom:4px">Buka Shift</h2>
-    <p style="color:#64748b;font-size:13px;margin-bottom:20px">Selamat datang, <b id="shift-user-info"></b></p>
-    <div style="text-align:left;margin-bottom:12px"><label style="font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:4px">Nama Shift</label>
-      <input id="shift-name" value="Shift Pagi" style="width:100%;border:2px solid #e2e8f0;border-radius:10px;padding:10px 12px;font-size:14px;outline:none"></div>
-    <div style="text-align:left;margin-bottom:16px"><label style="font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:4px">Opening Cash (Rp)</label>
-      <input id="opening-cash" type="number" value="500000" style="width:100%;border:2px solid #e2e8f0;border-radius:10px;padding:10px 12px;font-size:14px;outline:none"></div>
-    <button onclick="openShift()" style="width:100%;background:#f59e0b;color:#fff;border:none;border-radius:10px;padding:12px;font-size:15px;font-weight:700;cursor:pointer">Buka Shift</button>
+<!-- SHIFT -->
+<div class="login-screen" id="shift-screen" style="display:none">
+  <div class="login-card">
+    <div class="login-icon" style="background:linear-gradient(135deg,#D4AF37,#b8960c)">📋</div>
+    <h2>Buka Shift</h2>
+    <p>Selamat datang, <b id="shift-user-info"></b></p>
+    <div class="form-group"><label>Nama Shift</label><input id="shift-name" value="Shift Pagi"></div>
+    <div class="form-group"><label>Opening Cash (Rp)</label><input id="opening-cash" type="number" value="500000"></div>
+    <button class="btn-primary" style="background:linear-gradient(135deg,#D4AF37,#b8960c)" onclick="openShift()">Buka Shift</button>
   </div>
 </div>
 
-<!-- MAIN KASIR -->
-<div id="kasir-screen" style="display:none;width:100%;height:100%;flex:1">
-<div style="display:flex;width:100%;height:100%">
-<!-- LEFT -->
-<div style="flex:2;display:flex;flex-direction:column;overflow:hidden">
-  <div style="background:#1e293b;color:#fff;padding:6px 16px;display:flex;justify-content:space-between;font-size:12px">
-    <div><a href="/" style="color:#94a3b8">Dashboard</a> | <b style="color:#60a5fa">Kasir</b> | <a href="/admin" style="color:#94a3b8">Admin</a></div>
-    <div style="display:flex;align-items:center;gap:12px">
-      <span style="color:#fbbf24" id="kasir-user-info">Kasir: -- | Shift: -</span>
-      <span style="color:#94a3b8">POS Simulator v2.2</span>
-      <button onclick="logoutKasir()" style="background:#dc2626;color:#fff;border:none;padding:3px 8px;border-radius:4px;cursor:pointer;font-size:10px">Logout</button>
-    </div>
-  </div>
-  <div style="background:#fff;padding:8px 16px;display:flex;justify-content:space-between;align-items:center;box-shadow:0 1px 3px rgba(0,0,0,.1)">
-    <div style="font-weight:700;font-size:16px">🛒 Kasir</div>
-    <input id="search" placeholder="Cari produk..." style="border:1px solid #cbd5e1;border-radius:8px;padding:6px 12px;font-size:13px;width:250px" oninput="searchProducts()">
-  </div>
-  <div style="flex:1;overflow-y:auto;padding:12px">
-    <div id="products" style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px"></div>
+<!-- MAIN -->
+<div id="kasir-screen" style="display:none;height:100vh;flex-direction:column">
+<div class="navbar">
+  <div><a href="/">🏠</a> <a href="/kasir" class="active">🛒 Kasir</a> <a href="/admin">⚙️ Admin</a></div>
+  <div class="nav-right">
+    <span class="nav-info" id="kasir-user-info">Kasir: -- | Shift: -</span>
+    <span style="color:#64748b;font-size:10px">POS v2.2</span>
+    <button class="btn-logout" onclick="logoutKasir()">Logout</button>
   </div>
 </div>
+<div style="display:flex;flex:1;overflow:hidden">
+
+<!-- LEFT: Products -->
+<div style="flex:2;display:flex;flex-direction:column;overflow:hidden">
+  <div class="header">
+    <div class="header-title">🛒 <span>Kasir</span></div>
+    <input class="search-box" id="search" placeholder="🔍 Cari produk..." oninput="searchProducts()">
+  </div>
+  <div class="products-area">
+    <div id="products" class="products-grid"></div>
+  </div>
+</div>
+
 <!-- RIGHT: Cart -->
-<div style="flex:1;background:#fff;display:flex;flex-direction:column;border-left:1px solid #e2e8f0">
-  <div style="background:#1e293b;color:#fff;padding:10px 12px">
-    <b>🛒 Keranjang</b> <span id="cart-count" style="color:#94a3b8;font-size:11px">0 item</span>
-    <button onclick="clearCart()" style="float:right;background:#ef4444;color:#fff;border:none;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:11px">🗑 Clear</button>
+<div class="cart-panel">
+  <div class="cart-header">
+    <h3>🛒 Keranjang <span class="count" id="cart-count">0</span></h3>
+    <button class="btn-clear" onclick="clearCart()">🗑 Clear</button>
   </div>
-  <div style="padding:6px 12px;border-bottom:1px solid #e2e8f0;background:#f8fafc;position:relative">
-    <div style="display:flex;gap:6px">
-      <input id="member-id" placeholder="Ketik nama atau no. telepon..." style="flex:1;border:1px solid #d1d5db;border-radius:6px;padding:4px 8px;font-size:11px;outline:none" oninput="searchMember()" onkeydown="if(event.key==='Enter'){event.preventDefault();selectFirstMember()}">
-      <button onclick="clearMember()" style="background:#ef4444;color:#fff;border:none;padding:4px 8px;border-radius:6px;font-size:10px;cursor:pointer">X</button>
+  <div class="member-section">
+    <div class="member-input-row">
+      <input class="member-input" id="member-id" placeholder="🔍 Nama atau no. telepon..." oninput="searchMember()" onkeydown="if(event.key==='Enter'){event.preventDefault();selectFirstMember()}">
+      <button class="member-clear" onclick="clearMember()">✕</button>
     </div>
-    <div id="member-dropdown" style="display:none;position:absolute;left:12px;right:12px;background:#fff;border:1px solid #d1d5db;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,.1);z-index:10;max-height:150px;overflow-y:auto"></div>
+    <div class="member-dropdown" id="member-dropdown"></div>
   </div>
-  <div id="member-info" style="display:none;padding:4px 12px;background:#dcfce7;border-bottom:1px solid #bbf7d0;font-size:10px;color:#166534">
+  <div class="member-info" id="member-info">
     <b id="member-name"></b> | <span id="member-tier" style="color:#2563eb"></span> | <span id="member-points" style="color:#d97706"></span> | <span id="member-phone" style="color:#64748b"></span>
   </div>
-    <b id="member-name"></b> | <span id="member-tier" style="color:#2563eb"></span> | <span id="member-points" style="color:#d97706"></span>
+  <div class="cart-items" id="cart-items">
+    <div class="cart-empty"><div class="icon">🛒</div><p>Keranjang kosong</p></div>
   </div>
-  <div id="cart-items" style="flex:1;overflow-y:auto;padding:8px">
-    <p style="color:#94a3b8;text-align:center;padding:40px;font-size:12px">Keranjang kosong</p>
+  <div class="cart-summary">
+    <div class="summary-row"><span class="label">Subtotal</span><span id="subtotal">Rp 0</span></div>
+    <div class="summary-row"><span class="label" id="ppn-label">PPN 11%</span><span id="tax-display">Rp 0</span></div>
+    <div class="summary-row total"><span>TOTAL</span><span class="value" id="cart-total">Rp 0</span></div>
   </div>
-  <div style="border-top:1px solid #e2e8f0;padding:12px;background:#f8fafc">
-    <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:2px"><span style="color:#64748b">Subtotal</span><span id="subtotal">Rp 0</span></div>
-    <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:2px"><span style="color:#64748b"><span id="ppn-label">PPN 11%</span></span><span id="tax-display">Rp 0</span></div>
-    <div style="display:flex;justify-content:space-between;font-size:18px;font-weight:900;margin-top:4px;border-top:1px solid #e2e8f0;padding-top:6px"><span>TOTAL</span><span id="cart-total" style="color:#2563eb">Rp 0</span></div>
+  <div class="payment-btns">
+    <button class="pay-btn pay-cash active" onclick="setPayment('CASH')" id="btn-cash">💵 TUNAI</button>
+    <button class="pay-btn pay-qris" onclick="setPayment('QRIS');showQrisModal()" id="btn-qris">⚡ QRIS</button>
   </div>
-  <div style="padding:8px 12px;display:flex;gap:6px">
-    <button onclick="setPayment('CASH')" id="btn-cash" style="flex:1;background:#22c55e;color:#fff;border:none;border-radius:8px;padding:10px;font-weight:700;font-size:11px;cursor:pointer">💵 TUNAI</button>
-    <button onclick="setPayment('QRIS');showQrisModal()" id="btn-qris" style="flex:1;background:#a855f7;color:#fff;border:none;border-radius:8px;padding:10px;font-weight:700;font-size:11px;cursor:pointer">⚡ QRIS</button>
+  <div class="cash-row show" id="cash-row">
+    <input class="cash-input" id="amount-paid" type="number" placeholder="Uang diterima" oninput="updateTotal()">
+    <div class="change-box"><div class="label">Kembali</div><div class="value" id="change">Rp 0</div></div>
   </div>
-  <div id="cash-row" style="padding:0 12px 8px;display:flex;gap:6px">
-    <input id="amount-paid" type="number" placeholder="Uang diterima" style="flex:1;border:2px solid #93c5fd;border-radius:8px;padding:8px;font-size:16px;font-weight:700" oninput="updateTotal()">
-    <div style="min-width:80px;text-align:right"><div style="font-size:10px;color:#94a3b8">Kembali</div><div id="change" style="font-size:16px;font-weight:700;color:#22c55e">Rp 0</div></div>
-  </div>
-  <div style="padding:0 12px 12px">
-    <button onclick="checkout()" id="btn-pay" style="width:100%;background:#2563eb;color:#fff;border:none;border-radius:12px;padding:14px;font-size:18px;font-weight:700;cursor:pointer" disabled>BAYAR</button>
-  </div>
+  <button class="btn-pay" id="btn-pay" onclick="checkout()" disabled>BAYAR</button>
 </div>
 </div>
 </div>
 
-<!-- QRIS Modal -->
-<div id="qris-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:60;align-items:center;justify-content:center" onclick="closeQrisModal()">
-  <div style="background:#fff;border-radius:16px;padding:24px;width:320px;text-align:center" onclick="event.stopPropagation()">
-    <h3 style="font-size:16px;font-weight:700;margin-bottom:4px">Scan QRIS</h3>
-    <p style="color:#64748b;font-size:12px;margin-bottom:12px" id="qris-amount-text">Rp 0</p>
-    <div style="background:#fff;border:2px solid #e2e8f0;border-radius:12px;padding:12px;margin-bottom:12px">
-      <img id="qris-img" src="" alt="QR Code" style="width:200px;height:200px;display:block;margin:0 auto">
-    </div>
-    <p style="font-size:11px;color:#64748b;margin-bottom:12px">Tunjukkan QR ini ke customer</p>
-    <button onclick="closeQrisModal();checkout()" style="width:100%;background:#2563eb;color:#fff;border:none;border-radius:8px;padding:10px;font-weight:600;cursor:pointer">Selesai Bayar</button>
+<!-- QRIS MODAL -->
+<div class="modal-overlay" id="qris-modal" onclick="closeQrisModal()">
+  <div class="modal-card" onclick="event.stopPropagation()">
+    <h2>Scan QRIS</h2>
+    <p class="subtitle" id="qris-amount-text">Rp 0</p>
+    <img class="qris-img" id="qris-img" src="" alt="QR Code">
+    <p style="font-size:11px;color:#94a3b8">Tunjukkan QR ini ke customer</p>
+    <button class="btn-modal" onclick="closeQrisModal();checkout()">Selesai Bayar</button>
   </div>
 </div>
 
-<!-- Payment Modal -->
-<div id="payment-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:50;align-items:center;justify-content:center">
-  <div style="background:#fff;border-radius:16px;padding:24px;width:380px;text-align:center">
-    <div style="font-size:48px">✅</div>
-    <h2 style="margin:8px 0 4px">Berhasil!</h2>
-    <p id="modal-tx-id" style="color:#64748b;font-size:12px"></p>
-    <p id="modal-total" style="font-size:32px;font-weight:900;color:#2563eb;margin:8px 0"></p>
-    <div id="modal-change-row" style="display:none"><p style="color:#22c55e;font-weight:700">Kembali: <span id="modal-change"></span></p></div>
-    <div style="background:#f8fafc;border-radius:8px;padding:12px;margin:12px 0;font-size:11px;text-align:left;border:1px solid #e2e8f0" id="modal-receipt"></div>
-    <div style="display:flex;gap:8px;margin-top:12px">
-      <button onclick="printReceipt()" style="width:100%;background:#1e293b;color:#fff;border:none;border-radius:8px;padding:10px;font-weight:600;cursor:pointer">🖨 Print & Tutup</button>
-    </div>
+<!-- PAYMENT MODAL -->
+<div class="modal-overlay" id="payment-modal">
+  <div class="modal-card">
+    <div class="modal-icon">✅</div>
+    <h2>Berhasil!</h2>
+    <p class="subtitle" id="modal-tx-id"></p>
+    <div class="total" id="modal-total"></div>
+    <div id="modal-change-row" style="display:none"><p class="change">Kembali: <span id="modal-change"></span></p></div>
+    <div class="modal-receipt" id="modal-receipt"></div>
+    <button class="btn-modal" onclick="printReceipt()">🖨 Print & Tutup</button>
   </div>
 </div>
 
@@ -131,15 +253,14 @@
 var cart=[],payment="CASH",ppnRate=11,currentUser="",currentDisplayName="",currentShiftId=null,activeMember=null,lastTxReceipt=null;
 var API="";
 
-// === LOGIN ===
+// LOGIN
 async function doLogin(){
   var user=document.getElementById("login-user").value;
   var pass=document.getElementById("login-pass").value;
   var r=await fetch(API+"/api/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username:user,password:pass})});
   var d=await r.json();
   if(d.status==="ok"){
-    currentUser=d.username;
-    currentDisplayName=d.display_name;
+    currentUser=d.username;currentDisplayName=d.display_name;
     document.getElementById("login-screen").style.display="none";
     document.getElementById("shift-screen").style.display="flex";
     document.getElementById("shift-user-info").textContent=d.display_name;
@@ -149,120 +270,48 @@ async function doLogin(){
   }
 }
 
-// === SHIFT ===
+// SHIFT
 async function openShift(){
-  // Cek dulu apakah ada shift open untuk kasir ini
-  var existing=null;
-  try{
-    var sr=await fetch(API+"/api/shifts/active");
-    var shifts=await sr.json();
-    for(var i=0;i<shifts.length;i++){
-      if(shifts[i].cashier===currentUser){existing=shifts[i];break}
-    }
-  }catch(e){}
-
-  if(existing){
-    // Resume shift yang sudah ada
-    currentShiftId=existing.id;
+  var name=document.getElementById("shift-name").value||"Shift";
+  var cash=parseInt(document.getElementById("opening-cash").value)||500000;
+  var r=await fetch(API+"/api/shifts/open",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({cashier:currentUser,shift_name:name,opening_cash:cash})});
+  var d=await r.json();
+  if(d.shift_id){
+    currentShiftId=d.shift_id;
     document.getElementById("shift-screen").style.display="none";
-    document.getElementById("kasir-screen").style.display="block";
-    document.getElementById("kasir-user-info").textContent=currentDisplayName+" | Shift: "+existing.shift_name+" (#"+currentShiftId+") | Modal: Rp "+existing.opening_cash.toLocaleString("id-ID");
-    loadProducts();loadPPN();
-  }else{
-    // Buka shift baru
-    var shiftName=document.getElementById("shift-name").value||"Shift";
-    var openingCash=parseInt(document.getElementById("opening-cash").value)||500000;
-    var r=await fetch(API+"/api/shifts/open",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({cashier:currentUser,shift_name:shiftName,opening_cash:openingCash})});
-    var d=await r.json();
-    if(d.status==="ok"){
-      currentShiftId=d.shift_id;
-      document.getElementById("shift-screen").style.display="none";
-      document.getElementById("kasir-screen").style.display="block";
-      document.getElementById("kasir-user-info").textContent=currentDisplayName+" | Shift: "+shiftName+" (#"+currentShiftId+") | Modal: Rp "+openingCash.toLocaleString("id-ID");
-      loadProducts();loadPPN();
-    }else{
-      alert("Gagal buka shift: "+(d.error||"Unknown error"));
-    }
+    document.getElementById("kasir-screen").style.display="flex";
+    document.getElementById("kasir-user-info").textContent="Kasir: "+currentDisplayName+" | Shift: #"+currentShiftId;
+    loadProducts();
   }
 }
 
-// === LOGOUT ===
+// LOGOUT
 function logoutKasir(){
   if(!confirm("Logout dan tutup shift?"))return;
-  // Tutup shift dulu
-  if(currentShiftId){
-    fetch(API+"/api/shifts/"+currentShiftId+"/close-self",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({closing_cash:0})}).catch(function(){});
-  }
-  currentUser="";currentDisplayName="";currentShiftId=null;
+  if(currentShiftId){fetch(API+"/api/shifts/"+currentShiftId+"/close-self",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({closing_cash:0})}).catch(function(){})}
+  currentUser="";currentDisplayName="";currentShiftId=null;activeMember=null;
   document.getElementById("kasir-screen").style.display="none";
   document.getElementById("login-screen").style.display="flex";
 }
 
-// === PRODUCTS ===
+// PRODUCTS
 async function loadProducts(search){
   var url=API+"/api/products";
   if(search)url+="?search="+encodeURIComponent(search);
   var r=await fetch(url);
   var products=await r.json();
   var el=document.getElementById("products");
-  var html="";
-  for(var i=0;i<products.length;i++){
-    var p=products[i];
+  var cats={"Makanan":"🍜","Minuman":"🥤","Snack":"🍿","Lainnya":"📦"};
+  el.innerHTML=products.map(function(p){
     var price=p.promo_active&&p.promo_price>0?p.promo_price:p.price;
-    var emoji={"Makanan":"🍜","Minuman":"🥤","Snack":"🍿"}[p.category]||"📦";
-    html+='<div onclick="addToCart('+p.id+',\''+p.name.replace(/'/g,"\\'")+'\','+price+','+p.stock+')" style="background:#fff;border-radius:12px;padding:12px;cursor:pointer;border:1px solid #e2e8f0;min-height:110px;transition:box-shadow .2s" onmouseover="this.style.boxShadow=\'0 4px 12px rgba(0,0,0,.1)\'" onmouseout="this.style.boxShadow=\'none\'">';
-    html+='<div style="font-size:28px;margin-bottom:6px">'+emoji+'</div>';
-    html+='<div style="font-weight:600;font-size:13px;margin-bottom:4px">'+p.name+'</div>';
-    html+='<div style="font-weight:700;font-size:14px;color:'+(p.promo_active?"#dc2626":"#1e293b")+'">Rp '+p.price.toLocaleString("id-ID")+'</div>';
-    if(p.promo_active)html+='<div style="font-weight:700;font-size:14px;color:#dc2626">Rp '+p.promo_price.toLocaleString("id-ID")+'</div>';
-    html+='<div style="font-size:11px;color:'+(p.stock<10?"#dc2626":"#94a3b8")+'">Stok: '+p.stock+'</div>';
-    html+='</div>';
-  }
-  el.innerHTML=html;
+    var stockClass=p.stock<10?"low":"";
+    var promoHtml=p.promo_active&&p.promo_price>0?'<div class="product-promo">Promo!</div>':'';
+    return '<div class="product-card" onclick="addToCart('+p.id+',"'+p.name.replace(/"/g,'\\"')+'",'+price+','+p.stock+')"><div class="product-emoji">'+(cats[p.category]||"📦")+'</div><div class="product-name">'+p.name+'</div><div class="product-price">Rp '+price.toLocaleString("id-ID")+'</div><div class="product-stock '+stockClass+'">Stok: '+p.stock+'</div>'+promoHtml+'</div>';
+  }).join("");
 }
 function searchProducts(){loadProducts(document.getElementById("search").value)}
 
-// === CART ===
-async function loadPPN(){try{var r=await fetch("/api/settings");var s=await r.json();if(s.ppn_rate){ppnRate=parseFloat(s.ppn_rate)||11;document.getElementById("ppn-label").textContent="PPN "+ppnRate+"%";}if(s.store_name)document.title=s.store_name+" - Kasir";}catch(e){}}
-var _memberTimer=null;
-async function searchMember(){
-  var q=document.getElementById("member-id").value.trim().replace(/[^0-9a-zA-Z ]/g,"");
-  if(_memberTimer)clearTimeout(_memberTimer);
-  if(!q){document.getElementById("member-dropdown").style.display="none";return}
-  _memberTimer=setTimeout(async function(){
-    try{
-      var r=await fetch(API+"/api/members?search="+encodeURIComponent(q));
-      var members=await r.json();
-      var dd=document.getElementById("member-dropdown");
-      if(!members.length){dd.innerHTML='<div style="padding:8px;color:#94a3b8;font-size:11px">Tidak ditemukan</div>';dd.style.display="block";return}
-      dd.innerHTML=members.map(function(m){
-        return '<div onclick="selectMember(\''+m.member_id+'\',\''+m.name+'\','+m.points+',\''+m.tier+'\',\''+m.phone+'\')" style="padding:6px 10px;cursor:pointer;border-bottom:1px solid #f1f5f5;font-size:11px;display:flex;justify-content:space-between;align-items:center" onmouseover="this.style.background=\"#f1f5f9\"" onmouseout="this.style.background=\"white\""><div><b>'+m.name+'</b><span style="color:#94a3b8;margin-left:6px">'+m.member_id+'</span></div><div style="color:#64748b">'+(m.phone||'')+'</div></div>'
-      }).join("");
-      dd.style.display="block";
-    }catch(e){}
-  },200);
-}
-function selectMember(id,name,points,tier,phone){
-  activeMember={member_id:id,name:name,points:points,tier:tier,phone:phone};
-  document.getElementById("member-id").value=id;
-  document.getElementById("member-dropdown").style.display="none";
-  document.getElementById("member-info").style.display="block";
-  document.getElementById("member-name").textContent=name;
-  document.getElementById("member-tier").textContent=tier.toUpperCase();
-  document.getElementById("member-points").textContent=points.toLocaleString("id-ID")+" poin";
-  document.getElementById("member-phone").textContent=phone||"";
-}
-function selectFirstMember(){
-  var first=document.querySelector("#member-dropdown div:first-child");
-  if(first&&first.onclick)first.click();
-}
-function clearMember(){
-  activeMember=null;
-  document.getElementById("member-id").value="";
-  document.getElementById("member-dropdown").style.display="none";
-  document.getElementById("member-info").style.display="none";
-}
-
+// CART
 function broadcastCart(){
   var total=cart.reduce(function(s,i){return s+i.price*i.qty},0);
   var tax=Math.round(total*ppnRate/100);
@@ -279,113 +328,139 @@ function addToCart(id,name,price,stock){
 function removeFromCart(i){cart.splice(i,1);renderCart();broadcastCart()}
 function changeQty(i,d){cart[i].qty+=d;if(cart[i].qty<=0)cart.splice(i,1);renderCart();broadcastCart()}
 function clearCart(){cart=[];document.getElementById("amount-paid").value="";renderCart();broadcastCart()}
-
 function renderCart(){
   var el=document.getElementById("cart-items");
-  if(!cart.length){el.innerHTML='<p style="color:#94a3b8;text-align:center;padding:40px;font-size:12px">Keranjang kosong</p>';updateTotal();return}
+  if(!cart.length){el.innerHTML='<div class="cart-empty"><div class="icon">🛒</div><p>Keranjang kosong</p></div>';updateTotal();return}
   var html="";
-  for(var i=0;i<cart.length;i++){
-    var item=cart[i];
-    html+='<div style="background:#f8fafc;border-radius:10px;padding:8px;margin-bottom:6px;display:flex;align-items:center;gap:8px;border:1px solid #e2e8f0">';
-    html+='<div style="flex:1"><div style="font-weight:600;font-size:13px">'+item.name+'</div><div style="font-size:11px;color:#64748b">Rp '+item.price.toLocaleString("id-ID")+'</div></div>';
-    html+='<div style="display:flex;align-items:center;gap:4px">';
-    html+='<button onclick="changeQty('+i+',-1)" style="width:28px;height:28px;border:none;background:#e2e8f0;border-radius:6px;cursor:pointer;font-weight:700">-</button>';
-    html+='<span style="width:28px;text-align:center;font-weight:700;font-size:13px">'+item.qty+'</span>';
-    html+='<button onclick="changeQty('+i+',1)" style="width:28px;height:28px;border:none;background:#e2e8f0;border-radius:6px;cursor:pointer;font-weight:700">+</button>';
-    html+='</div>';
-    html+='<div style="text-align:right;min-width:80px"><div style="font-weight:700;font-size:13px">Rp '+(item.price*item.qty).toLocaleString("id-ID")+'</div><button onclick="removeFromCart('+i+')" style="border:none;background:none;color:#ef4444;cursor:pointer;font-size:11px">✕</button></div>';
-    html+='</div>';
-  }
+  cart.forEach(function(item,i){
+    html+='<div class="cart-item"><div class="cart-item-info"><div class="cart-item-name">'+item.name+'</div><div class="cart-item-price">Rp '+item.price.toLocaleString("id-ID")+' x '+item.qty+'</div></div><div class="cart-qty"><button class="qty-btn qty-minus" onclick="changeQty('+i+',-1)">-</button><span class="qty-value">'+item.qty+'</span><button class="qty-btn qty-plus" onclick="changeQty('+i+',1)">+</button></div><div class="cart-item-total">Rp '+(item.price*item.qty).toLocaleString("id-ID")+'</div><button class="cart-item-remove" onclick="removeFromCart('+i+')">✕</button></div>';
+  });
   el.innerHTML=html;
+  document.getElementById("cart-count").textContent=cart.reduce(function(s,i){return s+i.qty},0);
   updateTotal();
 }
 
+// TOTAL
 function updateTotal(){
   var subtotal=cart.reduce(function(s,i){return s+i.price*i.qty},0);
   var tax=Math.round(subtotal*ppnRate/100);
   var grand=subtotal+tax;
-  var paid=parseInt(document.getElementById("amount-paid").value)||0;
-  var change=Math.max(0,paid-grand);
   document.getElementById("subtotal").textContent="Rp "+subtotal.toLocaleString("id-ID");
   document.getElementById("tax-display").textContent="Rp "+tax.toLocaleString("id-ID");
   document.getElementById("cart-total").textContent="Rp "+grand.toLocaleString("id-ID");
-  document.getElementById("cart-count").textContent=cart.reduce(function(s,i){return s+i.qty},0)+" item";
+  var paid=payment==="CASH"?(parseInt(document.getElementById("amount-paid").value)||0):0;
+  var change=paid>grand?paid-grand:0;
   document.getElementById("change").textContent="Rp "+change.toLocaleString("id-ID");
-  document.getElementById("btn-pay").disabled=!cart.length;
+  document.getElementById("btn-pay").disabled=cart.length===0;
 }
 
-function setPayment(method){
-  payment=method;
-  document.getElementById("btn-cash").style.background=method==="CASH"?"#22c55e":"#e2e8f0";
-  document.getElementById("btn-cash").style.color=method==="CASH"?"#fff":"#64748b";
-  document.getElementById("btn-qris").style.background=method==="QRIS"?"#a855f7":"#e2e8f0";
-  document.getElementById("btn-qris").style.color=method==="QRIS"?"#fff":"#64748b";
-  document.getElementById("cash-row").style.display=method==="CASH"?"flex":"none";
+// PAYMENT
+function setPayment(m){
+  payment=m;
+  document.getElementById("btn-cash").className="pay-btn pay-cash"+(m==="CASH"?" active":"");
+  document.getElementById("btn-qris").className="pay-btn pay-qris"+(m==="QRIS"?" active":"");
+  document.getElementById("cash-row").className="cash-row"+(m==="CASH"?" show":"");
   updateTotal();
 }
 
+// QRIS
 function showQrisModal(){
   var subtotal=cart.reduce(function(s,i){return s+i.price*i.qty},0);
   var tax=Math.round(subtotal*ppnRate/100);
   var grand=subtotal+tax;
   document.getElementById("qris-amount-text").textContent="Rp "+grand.toLocaleString("id-ID");
-  var qrText="QRIS|POS SIMULATOR|"+grand;
-  document.getElementById("qris-img").src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data="+encodeURIComponent(qrText);
+  var qrText="QRIS|POS|"+grand;
+  document.getElementById("qris-img").src="https://api.qrserver.com/v1/create-qr-code/?size=220x220&data="+encodeURIComponent(qrText);
   document.getElementById("qris-modal").style.display="flex";
 }
 function closeQrisModal(){document.getElementById("qris-modal").style.display="none"}
 
-// === CHECKOUT ===
+// CHECKOUT
 async function checkout(){
   if(!cart.length)return;
   var paid=payment==="CASH"?(parseInt(document.getElementById("amount-paid").value)||0):0;
   var items=cart.map(function(i){return{product_id:i.product_id,qty:i.qty,discount:0,notes:""}});
   var r=await fetch(API+"/api/checkout",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({items:items,payment:payment,discount:0,amount_paid:paid,cashier:currentUser,shift_id:currentShiftId,member_id:activeMember?activeMember.member_id:""})});
   var tx=await r.json();
-  showPaymentModal(tx);
-  cart=[];
-  document.getElementById("amount-paid").value="";
-  renderCart();
-  loadProducts();loadPPN();
-}
-
-function showPaymentModal(tx){
-  lastTxReceipt=tx;
-  document.getElementById("modal-tx-id").textContent=tx.id+" | "+tx.time;
-  document.getElementById("modal-total").textContent="Rp "+tx.grand_total.toLocaleString("id-ID");
-  if(payment==="CASH"&&tx.change>0){
-    document.getElementById("modal-change-row").style.display="block";
-    document.getElementById("modal-change").textContent="Rp "+tx.change.toLocaleString("id-ID");
-  }else{
-    document.getElementById("modal-change-row").style.display="none";
+  if(tx.id){
+    lastTxReceipt=tx;
+    document.getElementById("modal-tx-id").textContent=tx.id;
+    document.getElementById("modal-total").textContent="Rp "+tx.grand_total.toLocaleString("id-ID");
+    if(tx.change>0){document.getElementById("modal-change-row").style.display="block";document.getElementById("modal-change").textContent="Rp "+tx.change.toLocaleString("id-ID")}
+    else{document.getElementById("modal-change-row").style.display="none"}
+    document.getElementById("modal-receipt").innerHTML="<b>Items:</b> "+tx.items.map(function(i){return i.name+" x"+i.qty}).join(", ");
+    document.getElementById("payment-modal").style.display="flex";
+    cart=[];document.getElementById("amount-paid").value="";renderCart();
+    fetch(API+"/api/ws-broadcast",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({type:"new_transaction",data:tx})}).catch(function(){});
   }
-  var receipt="<p style='font-weight:700;text-align:center'>POS SIMULATOR</p>";
-  receipt+="<p style='text-align:center;color:#94a3b8;font-size:10px'>"+tx.date+" "+tx.time+"</p><hr style='margin:6px 0'>";
-  if(tx.items)tx.items.forEach(function(it){receipt+="<div style='display:flex;justify-content:space-between'><span>"+it.name+" x"+it.qty+"</span><span>Rp "+(it.subtotal||it.price*it.qty).toLocaleString("id-ID")+"</span></div>"});
-  receipt+="<hr style='margin:6px 0'><div style='display:flex;justify-content:space-between;font-weight:700'><span>TOTAL</span><span>Rp "+tx.grand_total.toLocaleString("id-ID")+"</span></div>";
-  document.getElementById("modal-receipt").innerHTML=receipt;
-  document.getElementById("payment-modal").style.display="flex";
 }
-
 function closePaymentModal(){document.getElementById("payment-modal").style.display="none"}
 function printReceipt(){
   closePaymentModal();
-  // Reset customer display
   fetch(API+"/api/ws-broadcast",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({type:"reset_display",data:{}})}).catch(function(){});
   if(!lastTxReceipt)return;
-  // Buka struk dengan autoprint untuk POS 58mm
   window.open("/receipt?tx="+lastTxReceipt.id+"&autoprint=1","_blank","width=400,height=600");
 }
 
-// === KEYBOARD SHORTCUTS ===
+// MEMBER
+var _memberTimer=null;
+async function searchMember(){
+  var q=document.getElementById("member-id").value.trim().replace(/[^0-9a-zA-Z ]/g,"");
+  if(_memberTimer)clearTimeout(_memberTimer);
+  if(!q){document.getElementById("member-dropdown").style.display="none";return}
+  _memberTimer=setTimeout(async function(){
+    try{
+      var r=await fetch(API+"/api/members?search="+encodeURIComponent(q));
+      var members=await r.json();
+      var dd=document.getElementById("member-dropdown");
+      if(!members.length){dd.innerHTML='<div style="padding:8px;color:#94a3b8;font-size:11px">Tidak ditemukan</div>';dd.style.display="block";return}
+      dd.innerHTML=members.map(function(m){
+        return '<div class="member-item" onclick="selectMember(\''+m.member_id+'\',\''+m.name+'\','+m.points+',\''+m.tier+'\',\''+m.phone+'\)"><div><b>'+m.name+'</b> <span style="color:#94a3b8;font-size:10px">'+m.member_id+'</span></div><div class="phone">'+(m.phone||'')+'</div></div>';
+      }).join("");
+      dd.style.display="block";
+    }catch(e){}
+  },200);
+}
+function selectMember(id,name,points,tier,phone){
+  activeMember={member_id:id,name:name,points:points,tier:tier,phone:phone};
+  document.getElementById("member-id").value=id;
+  document.getElementById("member-dropdown").style.display="none";
+  document.getElementById("member-info").style.display="block";
+  document.getElementById("member-name").textContent=name;
+  document.getElementById("member-tier").textContent=tier.toUpperCase();
+  document.getElementById("member-points").textContent=points.toLocaleString("id-ID")+" poin";
+  document.getElementById("member-phone").textContent=phone||"";
+}
+function selectFirstMember(){var f=document.querySelector("#member-dropdown .member-item");if(f)f.click()}
+function clearMember(){
+  activeMember=null;document.getElementById("member-id").value="";
+  document.getElementById("member-dropdown").style.display="none";
+  document.getElementById("member-info").style.display="none";
+}
+
+// PPN
+async function loadPPN(){try{var r=await fetch("/api/settings");var s=await r.json();if(s.ppn_rate){ppnRate=parseFloat(s.ppn_rate)||11;document.getElementById("ppn-label").textContent="PPN "+ppnRate+"%"}if(s.store_name)document.title=s.store_name+" - Kasir"}catch(e){}}
+
+// WEBSOCKET
+var WS_URL="ws://"+location.host+"/ws";
+function connectWS(){
+  try{
+    var ws=new WebSocket(WS_URL);
+    ws.onopen=function(){};
+    ws.onmessage=function(e){};
+    ws.onclose=function(){setTimeout(connectWS,3000)};
+  }catch(e){}
+}
+
+// KEYBOARD
 document.addEventListener("keydown",function(e){
   if(e.target.tagName==="INPUT")return;
-  if(e.key==="F1"){e.preventDefault();document.getElementById("search").focus()}
-  if(e.key==="F9"){e.preventDefault();if(!document.getElementById("btn-pay").disabled)checkout()}
-  if(e.key==="Escape"){closePaymentModal()}
-  if(e.ctrlKey&&e.key==="d"){e.preventDefault();clearCart()}
-  if(e.ctrlKey&&e.key==="/"){e.preventDefault();document.getElementById("search").focus()}
+  if(e.key==="Escape"){closePaymentModal();closeQrisModal()}
 });
+
+// INIT
+loadProducts();loadPPN();connectWS();
+document.addEventListener("click",function(e){if(!e.target.closest("#member-id")&&!e.target.closest("#member-dropdown"))document.getElementById("member-dropdown").style.display="none"});
 </script>
 </body>
 </html>
