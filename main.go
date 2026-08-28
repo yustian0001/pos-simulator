@@ -216,7 +216,6 @@ func initDB() {
 	}
 	json.Unmarshal(configFile, &config)
 
-	// Priority: embedded config > env vars > local
 	tursoURL := config.TursoURL
 	tursoToken := config.TursoToken
 	if v := os.Getenv("TURSO_DATABASE_URL"); v != "" {
@@ -227,29 +226,26 @@ func initDB() {
 	}
 
 	if tursoURL != "" && tursoToken != "" {
-		// Turso cloud sync mode
 		connStr := tursoURL + "?authToken=" + tursoToken
 		var err error
 		db, err = sql.Open("libsql", connStr)
 		if err != nil {
-			log.Printf("[POS] Turso connect failed: %v, falling back to local", err)
-			initLocalDB()
-			return
+			fmt.Printf("[POS] Turso failed: %v, using local\n", err)
+		} else {
+			fmt.Printf("[POS] DB: Turso cloud (%s)\n", tursoURL)
 		}
-		fmt.Printf("[POS] DB: Turso cloud (%s)\n", tursoURL)
-	} else {
-		initLocalDB()
 	}
-}
 
-func initLocalDB() {
-	dir := getDataDir()
-	dbPath := filepath.Join(dir, "pos.db")
-
-	var err error
-	db, err = sql.Open("sqlite", dbPath+"?_journal_mode=WAL&_busy_timeout=5000")
-	if err != nil {
-		log.Fatal(err)
+	// Fallback to local SQLite
+	if db == nil {
+		dir := getDataDir()
+		dbPath := filepath.Join(dir, "pos.db")
+		var err error
+		db, err = sql.Open("sqlite", dbPath+"?_journal_mode=WAL&_busy_timeout=5000")
+		if err != nil {
+			log.Fatal(err)
+		}
+		fmt.Printf("[POS] DB: %s\n", dbPath)
 	}
 
 	tables := `
@@ -390,7 +386,6 @@ func initLocalDB() {
 			m.mid, m.name, m.phone, m.email, m.points, m.tier)
 	}
 
-	fmt.Printf("[POS] DB: %s\n", dbPath)
 }
 
 func now() string {

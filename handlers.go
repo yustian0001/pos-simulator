@@ -492,7 +492,8 @@ func handleGetMember(w http.ResponseWriter, r *http.Request) {
 	parts := strings.Split(r.URL.Path, "/")
 	mid := parts[len(parts)-1]
 	var m Member
-	err := db.QueryRow("SELECT id,member_id,name,phone,email,points,tier FROM members WHERE member_id=?", mid).
+	// Search by member_id OR name (LIKE)
+	err := db.QueryRow("SELECT id,member_id,name,phone,email,points,tier FROM members WHERE member_id=? OR name LIKE ?", mid, "%"+mid+"%").
 		Scan(&m.ID, &m.MemberID, &m.Name, &m.Phone, &m.Email, &m.Points, &m.Tier)
 	if err != nil {
 		jsonResponse(w, map[string]string{"error": "Member not found"}, 404)
