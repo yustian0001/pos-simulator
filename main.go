@@ -326,9 +326,9 @@ func initDB() {
 	}
 
 	settings := map[string]string{
-		"store_name":   "POS Simulator",
+		"store_name":   "Masjid Jami' Baiturrahman",
 		"opening_cash": "500000",
-		"store_address": "Jl. Contoh No. 123, Jakarta",
+		"store_address": "Jl. Tole Iskandar No.KM. 3, Mekar Jaya, Kec. Sukmajaya, Kota Depok, Jawa Barat 16411",
 		"store_phone":  "081234567890",
 		"ad_title":     "Promo Spesial Hari Ini!",
 		"ad_desc":      "Dapatkan diskon menarik untuk semua produk pilihan",
