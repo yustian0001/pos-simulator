@@ -1,0 +1,4 @@
+{
+  "turso_url": "libsql://pos-db-remasbara.aws-ap-south-1.turso.io",
+  "turso_token": "REDACTED_TURSO_TOKEN"
+}

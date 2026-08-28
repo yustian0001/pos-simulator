@@ -209,9 +209,22 @@ func getDataDir() string {
 }
 
 func initDB() {
-	// Check for Turso cloud URL
-	tursoURL := os.Getenv("TURSO_DATABASE_URL")
-	tursoToken := os.Getenv("TURSO_AUTH_TOKEN")
+	// Read config from embedded config.json
+	var config struct {
+		TursoURL   string `json:"turso_url"`
+		TursoToken string `json:"turso_token"`
+	}
+	json.Unmarshal(configFile, &config)
+
+	// Priority: embedded config > env vars > local
+	tursoURL := config.TursoURL
+	tursoToken := config.TursoToken
+	if v := os.Getenv("TURSO_DATABASE_URL"); v != "" {
+		tursoURL = v
+	}
+	if v := os.Getenv("TURSO_AUTH_TOKEN"); v != "" {
+		tursoToken = v
+	}
 
 	if tursoURL != "" && tursoToken != "" {
 		// Turso cloud sync mode

@@ -17,6 +17,9 @@ import (
 //go:embed frontend/*
 var frontendFS embed.FS
 
+//go:embed config.json
+var configFile []byte
+
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool { return true },
 }
