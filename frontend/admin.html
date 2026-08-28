@@ -47,6 +47,12 @@ tr:hover{background:#f8fafc}
 .report-card p{font-size:11px;color:#64748b}
 .report-card .value{font-size:20px;font-weight:700}
 .hidden{display:none}
+.sortable{cursor:pointer;user-select:none;position:relative;padding-right:16px!important}
+.sortable:hover{background:#e2e8f0}
+.sortable::after{content:"\2195";position:absolute;right:4px;color:#94a3b8;font-size:10px}
+.sort-asc::after{content:"\2191";color:#2563eb}
+.sort-desc::after{content:"\2193";color:#2563eb}
+
 </style></head><body>
 
 <div class="nav">
@@ -92,7 +98,7 @@ tr:hover{background:#f8fafc}
   <!-- CASH -->
   <div id="panel-cash" class="card hidden">
     <h2 style="font-size:18px;font-weight:700;margin-bottom:12px">💵 Cash Management</h2>
-    <table><thead><tr><th>Waktu</th><th>Shift</th><th>Tipe</th><th style="text-align:right">Jumlah</th><th>Keterangan</th></tr></thead><tbody id="cash-table"></tbody></table>
+    <table><thead><tr><th class="sortable" onclick="sortTable('cash-table',0)">Waktu</th><th class="sortable" onclick="sortTable('cash-table',1)">Shift</th><th class="sortable" onclick="sortTable('cash-table',2)">Tipe</th><th class="sortable" onclick="sortTable('cash-table',3,'num')" style="text-align:right">Jumlah</th><th>Keterangan</th></tr></thead><tbody id="cash-table"></tbody></table>
   </div>
 
   <!-- MEMBERS -->
@@ -101,7 +107,7 @@ tr:hover{background:#f8fafc}
       <h2 style="font-size:18px;font-weight:700">👤 Member</h2>
       <button class="btn btn-green" onclick="showAddMember()">+ Tambah</button>
     </div>
-    <table><thead><tr><th>ID</th><th>Nama</th><th>Telepon</th><th style="text-align:center">Poin</th><th style="text-align:center">Tier</th></tr></thead><tbody id="members-table"></tbody></table>
+    <table><thead><tr><th class="sortable" onclick="sortTable('members-table',0)">ID</th><th class="sortable" onclick="sortTable('members-table',1)">Nama</th><th class="sortable" onclick="sortTable('members-table',2)">Telepon</th><th class="sortable" onclick="sortTable('members-table',3,'num')" style="text-align:center">Poin</th><th class="sortable" onclick="sortTable('members-table',4)">Tier</th></tr></thead><tbody id="members-table"></tbody></table>
   </div>
 
   <!-- TRANSACTIONS -->
@@ -129,7 +135,7 @@ tr:hover{background:#f8fafc}
   <!-- STOCK -->
   <div id="panel-stock" class="card hidden">
     <h2 style="font-size:18px;font-weight:700;margin-bottom:12px">📦 Laporan Stok</h2>
-    <table><thead><tr><th>SKU</th><th>Nama</th><th>Kategori</th><th style="text-align:center">Stok</th><th style="text-align:right">Modal</th><th style="text-align:right">Jual</th><th style="text-align:right">Nilai Stok</th></tr></thead><tbody id="stock-table"></tbody></table>
+    <table><thead><tr><th class="sortable" onclick="sortTable('stock-table',0)">SKU</th><th class="sortable" onclick="sortTable('stock-table',1)">Nama</th><th class="sortable" onclick="sortTable('stock-table',2)">Kategori</th><th class="sortable" onclick="sortTable('stock-table',3,'num')" style="text-align:center">Stok</th><th class="sortable" onclick="sortTable('stock-table',4,'num')" style="text-align:right">Modal</th><th class="sortable" onclick="sortTable('stock-table',5,'num')" style="text-align:right">Jual</th><th class="sortable" onclick="sortTable('stock-table',6,'num')" style="text-align:right">Nilai Stok</th></tr></thead><tbody id="stock-table"></tbody></table>
   </div>
 
   <!-- ADS -->
@@ -344,6 +350,22 @@ function updateMarqueePreview(){var v=document.getElementById("a-marquee").value
 async function loadAdsSettings(){try{var r=await fetch("/api/settings");var s=await r.json();document.getElementById("a-marquee").value=s.ad_marquee||"🎉 Promo Spesial! Diskon menarik untuk semua produk! 🎉";updateMarqueePreview();_adImages=JSON.parse(s.ad_images||"[]");renderAdCarousel();document.getElementById("ad-count-text").textContent=_adImages.length+" gambar";}catch(e){}}
 async function saveAds(){await authFetch("/api/settings",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({ad_marquee:document.getElementById("a-marquee").value,ad_images:JSON.stringify(_adImages)})});alert("Iklan tersimpan!")}
 
+
+// Table Sort
+var _sortState={};
+function sortTable(tid,col,type){
+  var key=tid+"_"+col;var dir=_sortState[key]==="asc"?"desc":"asc";_sortState[key]=dir;
+  var tbody=document.getElementById(tid);var rows=Array.from(tbody.querySelectorAll("tr"));
+  rows.sort(function(a,b){
+    var va=a.children[col]?a.children[col].textContent.trim():"";
+    var vb=b.children[col]?b.children[col].textContent.trim():"";
+    if(type==="num"){va=parseFloat(va.replace(/[^\d.-]/g,""))||0;vb=parseFloat(vb.replace(/[^\d.-]/g,""))||0}
+    if(va<vb)return dir==="asc"?-1:1;if(va>vb)return dir==="asc"?1:-1;return 0;
+  });
+  rows.forEach(function(r){tbody.appendChild(r)});
+  var ths=document.getElementById(tid).closest(".card")?.querySelectorAll("th")||[];
+  ths.forEach(function(h,i){h.classList.remove("sort-asc","sort-desc");if(i===col)h.classList.add(dir==="asc"?"sort-asc":"sort-desc")});
+}
 // Init
 loadProducts();checkAlerts();loadAdsSettings();document.getElementById('ad-image-input').addEventListener('change',handleAdImageUpload);document.getElementById("ad-image-input").addEventListener("change",handleAdImageUpload);
 </script></body></html>
