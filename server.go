@@ -241,6 +241,7 @@ func main() {
 			return // cloudflared not found, skip
 		}
 		fmt.Printf("[POS] Starting Cloudflare Tunnel...\n")
+			
 		cmd := exec.Command(cloudflared, "tunnel", "--url", "http://localhost:"+port)
 		stdout, _ := cmd.StdoutPipe()
 		cmd.Stderr = cmd.Stdout
