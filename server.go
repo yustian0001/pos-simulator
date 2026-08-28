@@ -257,7 +257,7 @@ func main() {
 				if end == -1 {
 					end = len(output)
 				}
-				publicURL := output[start : start+end]
+				publicURL := output[start : start+end] + "/admin-login"
 				fmt.Printf("[POS] ============================================\n")
 				fmt.Printf("[POS] Remote Admin URL:\n")
 				fmt.Printf("[POS] %s\n", publicURL)
