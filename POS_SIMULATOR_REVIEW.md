@@ -16,7 +16,7 @@
 | **Frontend** | Vanilla HTML/CSS/JS | Single-file, no CDN, no build |
 | **Realtime** | WebSocket (Gorilla) | Customer display live updates |
 | **Auth** | bcrypt + session tokens | 8h expiry, forced password change |
-| **Security** | CSRF + Rate Limit + Audit Trail + Inventory Ledger | Production-grade |
+| **Security** | CSRF + Rate Limit + Audit Trail + Inventory Ledger | **Baseline controls; pre-production** |
 | **Print** | CSS @page 58mm | Auto-print Chrome --kiosk-printing |
 | **Remote** | Cloudflare Tunnel | Auto-detect cloudflared.exe |
 | **Cloud** | Turso (libSQL) | Embedded config, auto-fallback |
@@ -35,7 +35,7 @@ go vet ./...
 go test ./...
 go test -race ./...
 ```
-**Status:** `go test ./...` PASS (9 tests, 4.003s). Commit: latest.
+**Status:** `go test ./...` PASS (10 tests, 0.013s). Commit: e8deb46.
 
 ---
 
@@ -655,7 +655,7 @@ Credentials are generated on first run. Admin must change password on first logi
 | AI tidak ubah settings tanpa admin | ✅ Implemented (masked secret) |
 | Turso/local mode documented | ⚠️ Partial (basic documented) |
 | WebSocket aman | ⚠️ Partial (broadcast protected, no auth) |
-| Automated tests | ✅ `go test ./...` PASS (9 tests) |
+| Automated tests | ✅ `go test ./...` PASS (10 tests) |
 | Dokumen hanya klaim verified | ✅ Updated |
 
 ---
