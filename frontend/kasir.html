@@ -319,6 +319,9 @@ function broadcastCart(){
   var items=cart.map(function(i){return{name:i.name,qty:i.qty,price:i.price}});
   fetch(API+"/api/ws-broadcast",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({type:"cart_update",data:{items:items,total:grand}})}).catch(function(){});
 }
+function addFromCard(el){
+  addToCart(parseInt(el.dataset.id),el.dataset.name,parseInt(el.dataset.price),parseInt(el.dataset.stock));
+}
 function addToCart(id,name,price,stock){
   var ex=cart.find(function(i){return i.product_id===id});
   if(ex){if(ex.qty>=stock){alert("Stok habis!");return}ex.qty++}
@@ -420,6 +423,9 @@ async function searchMember(){
       dd.style.display="block";
     }catch(e){}
   },200);
+}
+function selectMemberFromEl(el){
+  selectMember(el.dataset.mid,el.dataset.name,parseInt(el.dataset.points),el.dataset.tier,el.dataset.phone);
 }
 function selectMember(id,name,points,tier,phone){
   activeMember={member_id:id,name:name,points:points,tier:tier,phone:phone};

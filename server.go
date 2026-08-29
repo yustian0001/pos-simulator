@@ -238,8 +238,10 @@ func main() {
 		exeDir := filepath.Dir(exePath)
 		cloudflared := filepath.Join(exeDir, "cloudflared.exe")
 		if _, err := os.Stat(cloudflared); os.IsNotExist(err) {
+			fmt.Printf("[POS] cloudflared.exe not found in %s\n", exeDir)
 			return
 		}
+		fmt.Printf("[POS] Found cloudflared at: %s\n", cloudflared)
 		fmt.Printf("[POS] Starting Cloudflare Tunnel...\n")
 		fmt.Printf("[POS] Buka terminal cloudflared untuk lihat URL\n")
 		fmt.Printf("[POS] Atau jalankan manual: cloudflared tunnel --url http://localhost:%s\n", port)
