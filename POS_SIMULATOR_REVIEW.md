@@ -543,9 +543,13 @@ Semua perubahan stok tercatat di `inventory_movements`:
 gofmt -w . && go vet ./... && go test ./... && go test -race ./...
 ```
 
-**Status:** `Implemented` dan `Manually verified`. Belum ada automated test suite.
+Automated test suite exists (10 tests, all passing). Coverage limited to unit tests — see section 11 for details.
 
 ---
+
+### ⚠️ Public Endpoint Warning
+
+Endpoint berikut sengaja public untuk kemudahan local development. **BELUM aman untuk internet publik** tanpa VPN/Cloudflare Access/IP allowlist: `/api/shifts/active`, `/api/members`, `/api/alerts/low-stock`, `/api/settings` (GET), `/api/receipt/{tx_id}`, `/api/ai/report`, `/api/ai/restock-candidates`, `/ws`. WebSocket auth belum diimplementasikan.
 
 ## 12. Known Limitations
 
