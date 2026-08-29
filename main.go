@@ -229,13 +229,20 @@ func initDB() {
 	}
 
 	if tursoURL != "" && tursoToken != "" {
-		connStr := tursoURL + "?authToken=" + tursoToken
+		dir := getDataDir()
+		dbPath := filepath.Join(dir, "pos_replica.db")
+		connStr := fmt.Sprintf("file:%s?syncUrl=%s&authToken=%s&syncInterval=60s", dbPath, tursoURL, tursoToken)
 		var err error
 		db, err = sql.Open("libsql", connStr)
 		if err != nil {
-			fmt.Printf("[POS] Turso failed: %v, using local\n", err)
+			fmt.Printf("[POS] Turso Embedded Replica failed: %v, using local sqlite\n", err)
+			db = nil
 		} else {
-			fmt.Printf("[POS] DB: Turso cloud (%s)\n", tursoURL)
+			if pingErr := db.Ping(); pingErr != nil {
+				fmt.Printf("[POS] Turso Embedded Replica ping warning: %v (offline mode on %s)\n", pingErr, dbPath)
+			} else {
+				fmt.Printf("[POS] DB: Turso Embedded Replica active (%s <-> %s)\n", dbPath, tursoURL)
+			}
 		}
 	}
 
