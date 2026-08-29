@@ -96,6 +96,9 @@
 | WebSocket Origin validation | Implemented | Verified |
 | WebSocket read limit 4096 | Implemented | Verified |
 | WebSocket deadline 60s/10s | Implemented | Verified |
+| WebSocket display token | Implemented | Not verified |
+| Shift ownership check | Implemented | Not verified |
+| Hold auth + audit | Implemented | Not verified |
 | Migration versioning | Implemented | Not verified |
 
 ---
@@ -141,7 +144,7 @@ Endpoints below are public by design for local development. **NOT safe for inter
 |-----------|--------|-----------|
 | Session in-memory | Lost on restart | Acceptable for single-machine |
 | Concurrent checkout | Tested 50x PASS | Mutex serializes requests correctly |
-| Turso conflict resolution | Not verified | Documented as Not verified |
+| Turso conflict resolution | Partial (3 scenarios documented) | Not verified |
 | WebSocket auth | Partial (Origin validated) | No full auth yet |
 | Migration versioning | Implemented | Not verified |
 | QRIS | Simulasi | Status: pending/paid |
@@ -155,14 +158,14 @@ Endpoints below are public by design for local development. **NOT safe for inter
 |----------|-----------------|---------------|
 | 13 tables + PRAGMA FK + schema_migrations | Implemented | Not verified |
 | Tidak ada secret di source/binary/repo | Partial (config.json embedded) | Not verified |
-| Endpoint sensitif ada auth | Partial (admin done, cashier needs review) | Not verified |
+| Endpoint sensitif ada auth | Partial (admin done, cashier: shift ownership + hold auth added) | Not verified |
 | Checkout atomic + rollback | Implemented | Manual verified; concurrent: Tested 50x PASS |
 | Semua stok punya inventory movement | Implemented (checkout + void) | Manual verified |
 | Void idempotent + reversal | Implemented | Manual verified |
 | AI idempotent | Implemented (atomic tx) | Manual verified |
 | AI tidak ubah settings tanpa admin | Implemented (masked secret) | Manual verified |
 | Turso/local mode documented | Partial (basic documented) | Not verified |
-| WebSocket aman | Partial (Origin validated) | Partial |
+| WebSocket aman | Implemented (Origin validation + display token + read limit + deadline) | Not verified |
 | Automated tests | Implemented | 10 tests PASS |
 | Migration versioning | Implemented | Not verified |
 | Dokumen konsistent | Updated | Verified |
@@ -180,6 +183,34 @@ Endpoints below are public by design for local development. **NOT safe for inter
 | 🟡 Medium | Service/repo layer | AI integration |
 | 🟢 Low | Session persistence | Multi-instance |
 | 🟢 Low | Split JS files | Review |
+
+
+---
+
+## Turso Conflict Scenarios (Draft)
+
+### Skenario A — Offline write → reconnect sync (paling mungkin)
+```
+Instance offline → tulis transaksi ke SQLite lokal →
+koneksi Turso pulih → bagaimana data lokal disinkronkan ke Turso?
+```
+**Strategi:** Last-write-wins berdasarkan `created_at` lokal. Server syncs local transactions to Turso on reconnect. Conflicts resolved by timestamp (newer wins).
+
+### Skenario B — Concurrent writes (kurang mungkin untuk single-register)
+```
+Dua instance menulis ke Turso bersamaan →
+siapa yang menang jika keduanya mengubah stok produk yang sama?
+```
+**Strategi:** SQLite-level conflict resolution (last-write-wins on row level). For single-register POS, this scenario is unlikely but documented for completeness.
+
+### Skenario C — Turso down di tengah transaksi
+```
+Turso down di tengah checkout yang sedang menulis →
+apakah otomatis fallback ke SQLite lokal?
+```
+**Strategi:** Fallback to local SQLite immediately. Transaction completes locally. On reconnect, sync to Turso. No data loss if local write succeeds.
+
+**Status:** Scenarios documented. Skenario A implementation pending.
 
 ---
 
