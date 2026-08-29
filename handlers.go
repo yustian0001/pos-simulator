@@ -3,6 +3,8 @@ package main
 import (
 	"database/sql"
 	"encoding/json"
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"math"
@@ -70,6 +72,62 @@ func logError(context string, err error) {
 func auditLog(action, entity, entityID, user, details string) {
 	db.Exec("INSERT INTO audit_log (action,entity,entity_id,user,details) VALUES (?,?,?,?,?)",
 		action, entity, entityID, user, details)
+}
+
+
+// === RATE LIMITER ===
+var loginAttempts = struct {
+	sync.RWMutex
+	data map[string][]time.Time
+}{data: make(map[string][]time.Time)}
+
+func checkRateLimit(key string, maxAttempts int, window time.Duration) bool {
+	loginAttempts.Lock()
+	defer loginAttempts.Unlock()
+	now := time.Now()
+	attempts := loginAttempts.data[key]
+	// Remove old attempts
+	var valid []time.Time
+	for _, t := range attempts {
+		if now.Sub(t) < window {
+			valid = append(valid, t)
+		}
+	}
+	if len(valid) >= maxAttempts {
+		loginAttempts.data[key] = valid
+		return false // blocked
+	}
+	loginAttempts.data[key] = append(valid, now)
+	return true // allowed
+}
+
+// === CSRF TOKEN ===
+var csrfTokens = struct {
+	sync.RWMutex
+	data map[string]time.Time
+}{data: make(map[string]time.Time)}
+
+func generateCSRFToken() string {
+	b := make([]byte, 16)
+	rand.Read(b)
+	token := hex.EncodeToString(b)
+	csrfTokens.Lock()
+	csrfTokens.data[token] = time.Now().Add(30 * time.Minute)
+	csrfTokens.Unlock()
+	return token
+}
+
+func validateCSRF(token string) bool {
+	csrfTokens.RLock()
+	expiry, exists := csrfTokens.data[token]
+	csrfTokens.RUnlock()
+	if !exists || time.Now().After(expiry) {
+		return false
+	}
+	csrfTokens.Lock()
+	delete(csrfTokens.data, token)
+	csrfTokens.Unlock()
+	return true
 }
 
 func handleLogin(w http.ResponseWriter, r *http.Request) {
@@ -728,6 +786,11 @@ func handleGetTransactions(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleVoidTransaction(w http.ResponseWriter, r *http.Request) {
+	csrf := r.Header.Get("X-CSRF-Token")
+	if csrf == "" || !validateCSRF(csrf) {
+		jsonResponse(w, map[string]string{"error": "Invalid CSRF token"}, 403)
+		return
+	}
 	parts := strings.Split(r.URL.Path, "/")
 	txID := parts[len(parts)-2]
 
@@ -1168,14 +1231,33 @@ func handleUpdateSettings(w http.ResponseWriter, r *http.Request) {
 // === AI INTEGRATION ===
 
 // Webhook receiver — AI agent bisa trigger action
+
+// CSRF token getter
+func handleGetCSRFToken(w http.ResponseWriter, r *http.Request) {
+	token := generateCSRFToken()
+	jsonResponse(w, map[string]string{"csrf_token": token}, 200)
+}
+
 func handleAIWebhook(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
 		jsonResponse(w, map[string]string{"error": "POST only"}, 405)
 		return
 	}
+	// Validate AI webhook secret
+	var aiSecret string
+	db.QueryRow("SELECT value FROM settings WHERE key='ai_webhook_secret'").Scan(&aiSecret)
+	if aiSecret != "" {
+		authHeader := r.Header.Get("Authorization")
+		if authHeader != "Bearer "+aiSecret {
+			auditLog("webhook_rejected", "ai", "", "", "Invalid secret")
+			jsonResponse(w, map[string]string{"error": "Unauthorized"}, 401)
+			return
+		}
+	}
 	var req struct {
 		Action string      `json:"action"`
 		Data   interface{} `json:"data"`
+		RequestID string    `json:"request_id"`
 	}
 	if err := decodeJSON(r, &req); err != nil {
 		jsonResponse(w, map[string]string{"error": "Invalid request"}, 400)
@@ -1184,11 +1266,10 @@ func handleAIWebhook(w http.ResponseWriter, r *http.Request) {
 
 	switch req.Action {
 	case "stock_update":
-		// AI agent update stok produk
 		data, _ := json.Marshal(req.Data)
 		var update struct {
-			ProductID int `json:"product_id"`
-			NewStock  int `json:"new_stock"`
+			ProductID int    `json:"product_id"`
+			NewStock  int    `json:"new_stock"`
 			Reason    string `json:"reason"`
 		}
 		json.Unmarshal(data, &update)
@@ -1196,7 +1277,17 @@ func handleAIWebhook(w http.ResponseWriter, r *http.Request) {
 			jsonResponse(w, map[string]string{"error": "product_id and new_stock required"}, 400)
 			return
 		}
+		// Idempotency: check if request_id already processed
+		if req.RequestID != "" {
+			var exists int
+			db.QueryRow("SELECT COUNT(*) FROM audit_log WHERE details LIKE ?", "%request_id:"+req.RequestID+"%").Scan(&exists)
+			if exists > 0 {
+				jsonResponse(w, map[string]string{"status": "ok", "message": "Already processed"}, 200)
+				return
+			}
+		}
 		db.Exec("UPDATE products SET stock=? WHERE id=?", update.NewStock, update.ProductID)
+		auditLog("stock_update", "product", fmt.Sprintf("%d", update.ProductID), "ai_webhook", fmt.Sprintf("stock=%d reason=%s request_id=%s", update.NewStock, update.Reason, req.RequestID))
 		db.Exec("INSERT INTO cash_log (shift_id,type,amount,description) VALUES (0,'stock_adjust',0,?)",
 			fmt.Sprintf("AI stock update: product_id=%d, stock=%d, reason=%s", update.ProductID, update.NewStock, update.Reason))
 		jsonResponse(w, map[string]string{"status": "ok"}, 200)

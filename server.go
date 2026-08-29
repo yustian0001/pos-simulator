@@ -69,6 +69,7 @@ func main() {
 
 	// API routes
 	mux.HandleFunc("/api/login", handleLogin)
+	mux.HandleFunc("/api/csrf-token", handleGetCSRFToken)
 	mux.HandleFunc("/api/logout", handleLogout)
 	mux.HandleFunc("/api/users", adminOnly(handleGetUsers))
 	mux.HandleFunc("/api/products", func(w http.ResponseWriter, r *http.Request) {
