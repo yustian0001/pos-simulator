@@ -134,7 +134,7 @@ products → users → shifts → transactions → tx_items → cash_log → mem
 ---
 
 ### ⚠️ Default Credentials Warning
-Default credentials (admin/admin123, kasir1/kasir123, kasir2/kasir123) are for development/testing only. If this system stores real data (including donation/member data for Masjid Jami Baiturrahman), **change all credentials on first deployment**.
+Default credentials follow the pattern username/username123. **Admin MUST change all default credentials before accepting real transactions or member data.** Do not rely on documentation for actual production credentials.
 
 ## Known Limitations
 
@@ -151,7 +151,7 @@ Default credentials (admin/admin123, kasir1/kasir123, kasir2/kasir123) are for d
 ---
 
 ### ⚠️ Data Status
-Row counts below reflect development/testing data. This system is configured for Masjid Jami Baiturrahman and may store real donation/member data. Items marked "Not verified" should be prioritized before production use.
+Row counts below reflect internal testing data only. No real donation/member data has been stored as of this review.
 
 ## ⚠️ Public Endpoint Warning
 
