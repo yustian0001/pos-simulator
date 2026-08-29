@@ -80,6 +80,20 @@ const params=new URLSearchParams(location.search);
 const txId=params.get('tx');
 const autoPrint=params.get('autoprint')==='1';
 const formatRp=n=>'Rp '+Number(n).toLocaleString('id-ID');
+function formatDate(str){
+  if(!str)return "--";
+  try{
+    const d=new Date(str);
+    if(isNaN(d.getTime()))return str;
+    const day=String(d.getDate()).padStart(2,'0');
+    const month=String(d.getMonth()+1).padStart(2,'0');
+    const year=d.getFullYear();
+    const hours=String(d.getHours()).padStart(2,'0');
+    const mins=String(d.getMinutes()).padStart(2,'0');
+    const secs=String(d.getSeconds()).padStart(2,'0');
+    return `${day}/${month}/${year} ${hours}:${mins}:${secs}`;
+  }catch(e){return str;}
+}
 
 async function loadReceipt(){
   if(!txId){document.getElementById('receipt-items').innerHTML='<p style="text-align:center;padding:20px">Struk tidak ditemukan</p>';return}
@@ -89,7 +103,7 @@ async function loadReceipt(){
     const d=await r.json();
     if(d.store_name)document.getElementById('store-name').textContent=d.store_name;
     if(d.address)document.getElementById('store-address').textContent=d.address;
-    document.getElementById('receipt-date').textContent=d.date||'--';
+    document.getElementById('receipt-date').textContent=formatDate(d.date);
     document.getElementById('r-tx-id').textContent=d.tx_id;
     let itemsHtml='';
     (d.items||[]).forEach(it=>{

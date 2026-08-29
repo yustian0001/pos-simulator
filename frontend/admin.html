@@ -52,7 +52,18 @@ tr:hover{background:#f8fafc}
 .sortable::after{content:"\2195";position:absolute;right:4px;color:#94a3b8;font-size:10px}
 .sort-asc::after{content:"\2191";color:#2563eb}
 .sort-desc::after{content:"\2193";color:#2563eb}
-
+.table-responsive{width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
+@media(max-width:1024px){
+  .report-cards{grid-template-columns:repeat(2,1fr)}
+  .container{padding:12px}
+}
+@media(max-width:640px){
+  .report-cards{grid-template-columns:1fr}
+  .form-row{grid-template-columns:1fr}
+  .nav{padding:8px 12px;font-size:11px}
+  .nav-right{gap:6px}
+  .tab{padding:6px 10px;font-size:11px}
+}
 </style></head><body>
 
 <div class="nav">
@@ -92,7 +103,7 @@ tr:hover{background:#f8fafc}
   <!-- SHIFTS -->
   <div id="panel-shifts" class="card hidden">
     <h2 style="font-size:18px;font-weight:700;margin-bottom:12px">📋 Laporan Shift</h2>
-    <table><thead><tr><th class="sortable" onclick="sortTable('shifts-table',0)">ID</th><th class="sortable" onclick="sortTable('shifts-table',1)">Shift</th><th class="sortable" onclick="sortTable('shifts-table',2)">Kasir</th><th class="sortable" onclick="sortTable('shifts-table',3,'num')" style="text-align:right">Opening</th><th class="sortable" onclick="sortTable('shifts-table',4,'num')" style="text-align:right">Cash Sales</th><th class="sortable" onclick="sortTable('shifts-table',5,'num')" style="text-align:right">Expected</th><th class="sortable" onclick="sortTable('shifts-table',6,'num')" style="text-align:right">Closing</th><th class="sortable" onclick="sortTable('shifts-table',7,'num')" style="text-align:right">Disc</th><th class="sortable" onclick="sortTable('shifts-table',8)">Status</th></tr></thead><tbody id="shifts-table"></tbody></table>
+    <table><thead><tr><th class="sortable" onclick="sortTable('shifts-table',0)">ID</th><th class="sortable" onclick="sortTable('shifts-table',1)">Shift</th><th class="sortable" onclick="sortTable('shifts-table',2)">Kasir</th><th class="sortable" onclick="sortTable('shifts-table',3,'num')" style="text-align:right">Opening</th><th class="sortable" onclick="sortTable('shifts-table',4,'num')" style="text-align:right">Cash Sales</th><th class="sortable" onclick="sortTable('shifts-table',5,'num')" style="text-align:right">QRIS Sales</th><th class="sortable" onclick="sortTable('shifts-table',6,'num')" style="text-align:right">Total Sales</th><th class="sortable" onclick="sortTable('shifts-table',7,'num')" style="text-align:right">Expected</th><th class="sortable" onclick="sortTable('shifts-table',8,'num')" style="text-align:right">Closing</th><th class="sortable" onclick="sortTable('shifts-table',9,'num')" style="text-align:right">Disc</th><th class="sortable" onclick="sortTable('shifts-table',10)">Status</th></tr></thead><tbody id="shifts-table"></tbody></table>
   </div>
 
   <!-- CASH -->
@@ -145,7 +156,7 @@ tr:hover{background:#f8fafc}
       <div>
         <h3 style="font-size:14px;font-weight:600;margin-bottom:8px">🖼️ Gambar Iklan (Carousel)</h3>
         <div style="border:2px dashed #d1d5db;border-radius:12px;padding:24px;text-align:center;background:#f8fafc;margin-bottom:12px">
-          <input type="file" id="ad-image-input" accept="image/*" multiple style="display:none">
+          <input type="file" id="ad-image-input" accept="image/*" multiple style="display:none" onchange="handleAdImageUpload(event)">
           <label for="ad-image-input" style="cursor:pointer;color:#475569;font-size:13px;display:block">
             <div style="font-size:36px;margin-bottom:8px">📁</div>
             <b>Klik untuk upload gambar</b><br><span style="font-size:11px;color:#94a3b8">PNG, JPG, WebP — Bisa beberapa sekaligus</span>
@@ -158,10 +169,11 @@ tr:hover{background:#f8fafc}
           <div id="ad-carousel-dots" style="position:absolute;bottom:10px;left:50%;transform:translateX(-50%);display:flex;gap:8px"></div>
           <div id="ad-carousel-counter" style="position:absolute;top:10px;right:10px;background:rgba(0,0,0,.6);color:#fff;padding:3px 10px;border-radius:6px;font-size:11px;font-weight:600"></div>
         </div>
-        <div style="display:flex;gap:8px">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
           <button class="btn btn-red btn-sm" onclick="clearAdImages()">🗑 Hapus Semua</button>
-          <span style="font-size:11px;color:#64748b;align-self:center" id="ad-count-text">0 gambar</span>
+          <span style="font-size:11px;color:#64748b" id="ad-count-text">0 gambar</span>
         </div>
+        <div id="ad-thumbnails-list" style="margin-top:12px;display:flex;flex-wrap:wrap;gap:6px"></div>
       </div>
       <div>
         <h3 style="font-size:14px;font-weight:600;margin-bottom:8px">📝 Running Text</h3>
@@ -232,13 +244,14 @@ async function logout(){await authFetch("/api/logout",{method:"POST"});sessionSt
 
 // Tabs
 function showTab(name){
-  ["products","shifts","cash","members","transactions","daily","stock","ads","system"].forEach(t=>{
+  const tList=["products","shifts","cash","members","transactions","daily","stock","ads","system"];
+  tList.forEach(t=>{
     document.getElementById("panel-"+t).classList.toggle("hidden",t!==name);
   });
   document.querySelectorAll(".tab").forEach((b,i)=>{
-    b.classList.toggle("active",["products","shifts","cash","members","transactions","daily","stock","system"][i]===name);
+    b.classList.toggle("active",tList[i]===name);
   });
-  const loaders={products:loadProducts,shifts:loadShifts,cash:loadCash,members:loadMembers,transactions:loadTransactions,daily:loadDailyReport,stock:loadStockReport,system:loadSettings};
+  const loaders={products:loadProducts,shifts:loadShifts,cash:loadCash,members:loadMembers,transactions:loadTransactions,daily:loadDailyReport,stock:loadStockReport,ads:loadAdsSettings,system:loadSettings};
   if(loaders[name])loaders[name]();
 }
 function closeModal(id){document.getElementById(id).classList.add("hidden")}
@@ -266,11 +279,72 @@ function editProduct(p){document.getElementById("pm-title").textContent="Edit Pr
 async function saveProduct(){const id=document.getElementById("edit-id").value;const d={sku:document.getElementById("p-sku").value,name:document.getElementById("p-name").value,price:parseInt(document.getElementById("p-price").value)||0,cost:parseInt(document.getElementById("p-cost").value)||0,category:document.getElementById("p-category").value,stock:parseInt(document.getElementById("p-stock").value)||0,unit:"pcs",barcode:document.getElementById("p-barcode").value,promo_price:parseInt(document.getElementById("p-promo").value)||0,promo_active:parseInt(document.getElementById("p-promo-active").value)||0,tax_rate:parseFloat(document.getElementById("p-tax").value)||-1};await authFetch(id?"/api/products/"+id:"/api/products",{method:id?"PUT":"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(d)});closeModal("product-modal");loadProducts()}
 async function deleteProduct(id){if(!confirm("Hapus produk ini?"))return;await authFetch("/api/products/"+id,{method:"DELETE"});loadProducts()}
 
+function formatDate(str){
+  if(!str)return "-";
+  try{
+    const d=new Date(str);
+    if(isNaN(d.getTime()))return str;
+    const day=String(d.getDate()).padStart(2,'0');
+    const month=String(d.getMonth()+1).padStart(2,'0');
+    const year=d.getFullYear();
+    const hours=String(d.getHours()).padStart(2,'0');
+    const mins=String(d.getMinutes()).padStart(2,'0');
+    const secs=String(d.getSeconds()).padStart(2,'0');
+    return `${day}/${month}/${year} ${hours}:${mins}:${secs}`;
+  }catch(e){return str;}
+}
+
 // SHIFTS
-async function loadShifts(){const r=await authFetch("/api/shifts");const s=await r.json();document.getElementById("shifts-table").innerHTML=s.map(x=>`<tr><td style="font-size:11px">#${x.id}</td><td>${x.shift_name}</td><td>${x.cashier}</td><td style="text-align:right">Rp${(x.opening_cash||0).toLocaleString("id-ID")}</td><td style="text-align:right">Rp${(x.cash_sales||0).toLocaleString("id-ID")}</td><td style="text-align:right">Rp${(x.expected_cash||0).toLocaleString("id-ID")}</td><td style="text-align:right">${x.closing_cash?"Rp"+x.closing_cash.toLocaleString("id-ID"):"-"}</td><td style="text-align:right;font-weight:700;${x.cash_discrepancy===0?'color:#22c55e':'color:#dc2626'}">${x.status==='closed'?(x.cash_discrepancy>=0?'+':'')+x.cash_discrepancy.toLocaleString("id-ID"):"-"}</td><td style="text-align:center"><span class="badge ${x.status==='open'?'badge-green':'badge-blue'}">${x.status==='open'?'🟢 Aktif':'✅ Selesai'}</span></td></tr>`).join("")}
+async function loadShifts(){
+  const r=await authFetch("/api/shifts");
+  const s=await r.json();
+  document.getElementById("shifts-table").innerHTML=s.map(x=>{
+    const qrisSales=Math.max(0, (x.total_sales||0) - (x.cash_sales||0));
+    return `<tr>
+      <td style="font-size:11px">#${x.id}</td>
+      <td>${x.shift_name}</td>
+      <td>${x.cashier}</td>
+      <td style="text-align:right">Rp${(x.opening_cash||0).toLocaleString("id-ID")}</td>
+      <td style="text-align:right">Rp${(x.cash_sales||0).toLocaleString("id-ID")}</td>
+      <td style="text-align:right;color:#2563eb;font-weight:600">Rp${qrisSales.toLocaleString("id-ID")}</td>
+      <td style="text-align:right;font-weight:700">Rp${(x.total_sales||0).toLocaleString("id-ID")}</td>
+      <td style="text-align:right">Rp${(x.expected_cash||0).toLocaleString("id-ID")}</td>
+      <td style="text-align:right">${x.closing_cash!==null && x.closing_cash!==undefined?"Rp"+x.closing_cash.toLocaleString("id-ID"):"-"}</td>
+      <td style="text-align:right;font-weight:700;${(x.cash_discrepancy||0)>=0?'color:#22c55e':'color:#dc2626'}">${x.status==='closed'?(x.cash_discrepancy>=0?'+':'')+x.cash_discrepancy.toLocaleString("id-ID"):"-"}</td>
+      <td style="text-align:center">
+        <span class="badge ${x.status==='open'?'badge-green':'badge-blue'}">${x.status==='open'?'🟢 Aktif':'✅ Selesai'}</span>
+        ${x.status==='open'?`<button class="btn btn-ghost btn-sm" style="color:#dc2626;margin-left:4px" onclick="adminCloseShift(${x.id})">Tutup Shift</button>`:''}
+      </td>
+    </tr>`;
+  }).join("");
+}
+
+async function adminCloseShift(id){
+  if(!confirm("Tutup shift #"+id+"?"))return;
+  await authFetch("/api/shifts/"+id,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({closing_cash:0})});
+  loadShifts();
+}
 
 // CASH
-async function loadCash(){const r=await authFetch("/api/shifts");const s=await r.json();let logs=[];for(const sh of s){try{const lr=await authFetch("/api/cash/log/"+sh.id);const l=await lr.json();logs=logs.concat(l)}catch(e){}}document.getElementById("cash-table").innerHTML=logs.sort((a,b)=>b.id-a.id).map(l=>`<tr><td style="font-size:11px">${l.created_at}</td><td>#${l.shift_id}</td><td><span class="badge badge-${l.type==='opening'?'blue':l.type==='closing'?'green':l.type==='cash_drop'?'red':'yellow'}">${l.type}</span></td><td style="text-align:right;font-weight:700">Rp${l.amount.toLocaleString("id-ID")}</td><td style="font-size:11px;color:#64748b">${l.description}</td></tr>`).join("")}
+async function loadCash(){
+  const r=await authFetch("/api/shifts");
+  const s=await r.json();
+  let logs=[];
+  for(const sh of s){
+    try{
+      const lr=await authFetch("/api/cash/log/"+sh.id);
+      const l=await lr.json();
+      logs=logs.concat(l);
+    }catch(e){}
+  }
+  document.getElementById("cash-table").innerHTML=logs.sort((a,b)=>b.id-a.id).map(l=>`<tr>
+    <td style="font-size:11px">${formatDate(l.created_at)}</td>
+    <td>#${l.shift_id}</td>
+    <td><span class="badge badge-${l.type==='opening'?'blue':l.type==='closing'?'green':l.type==='qris_sales'?'purple':l.type==='cash_drop'?'red':'yellow'}">${l.type}</span></td>
+    <td style="text-align:right;font-weight:700">Rp${l.amount.toLocaleString("id-ID")}</td>
+    <td style="font-size:11px;color:#64748b">${l.description}</td>
+  </tr>`).join("");
+}
 
 // MEMBERS
 async function loadMembers(){const r=await authFetch("/api/members");const m=await r.json();document.getElementById("members-table").innerHTML=m.map(x=>`<tr><td style="font-family:monospace;font-size:11px">${x.member_id}</td><td style="font-weight:600">${x.name}</td><td>${x.phone||'-'}</td><td style="text-align:center;font-weight:700">${x.points.toLocaleString("id-ID")}</td><td style="text-align:center"><span class="badge ${x.tier==='gold'?'badge-yellow':x.tier==='silver'?'badge-blue':'badge-green'}">${x.tier.toUpperCase()}</span></td></tr>`).join("")}
@@ -278,7 +352,22 @@ function showAddMember(){document.getElementById("member-modal").classList.remov
 async function saveMember(){await authFetch("/api/members",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:document.getElementById("m-name").value,phone:document.getElementById("m-phone").value,email:document.getElementById("m-email").value})});closeModal("member-modal");loadMembers()}
 
 // TRANSACTIONS
-async function loadTransactions(){const date=document.getElementById("tx-date").value||"";let url="/api/transactions?limit=200";if(date)url+="&date="+date;const r=await authFetch(url);const txs=await r.json();document.getElementById("tx-table").innerHTML=txs.map(t=>`<tr><td style="font-family:monospace;font-size:11px">${t.tx_id}</td><td style="font-size:11px">${t.created_at}</td><td style="text-align:right;font-weight:700">Rp${t.grand_total.toLocaleString("id-ID")}</td><td><span class="badge ${t.payment==='CASH'?'badge-green':'badge-blue'}">${t.payment}</span></td><td>${t.cashier}</td><td style="text-align:center"><span class="badge ${t.status==='completed'?'badge-green':'badge-red'}">${t.status}</span></td><td style="text-align:center">${t.status==='completed'?`<button class="btn btn-ghost btn-sm" style="color:#dc2626" onclick="voidTx('${t.tx_id}')">Void</button>`:'-'}</td></tr>`).join("")}
+async function loadTransactions(){
+  const date=document.getElementById("tx-date").value||"";
+  let url="/api/transactions?limit=200";
+  if(date)url+="&date="+date;
+  const r=await authFetch(url);
+  const txs=await r.json();
+  document.getElementById("tx-table").innerHTML=txs.map(t=>`<tr>
+    <td style="font-family:monospace;font-size:11px">${t.tx_id}</td>
+    <td style="font-size:11px">${formatDate(t.created_at)}</td>
+    <td style="text-align:right;font-weight:700">Rp${t.grand_total.toLocaleString("id-ID")}</td>
+    <td><span class="badge ${t.payment==='CASH'?'badge-green':'badge-blue'}">${t.payment}</span></td>
+    <td>${t.cashier}</td>
+    <td style="text-align:center"><span class="badge ${t.status==='completed'?'badge-green':'badge-red'}">${t.status}</span></td>
+    <td style="text-align:center">${t.status==='completed'?`<button class="btn btn-ghost btn-sm" style="color:#dc2626" onclick="voidTx('${t.tx_id}')">Void</button>`:'-'}</td>
+  </tr>`).join("");
+}
 async function voidTx(id){if(!confirm("Batalkan "+id+"?"))return;await authFetch("/api/transactions/"+id+"/void",{method:"PUT"});loadTransactions()}
 
 // DAILY REPORT
@@ -299,54 +388,92 @@ async function loadDailyReport(){const date=document.getElementById("report-date
 async function loadStockReport(){const r=await(await fetch("/api/stock-report")).json();document.getElementById("stock-table").innerHTML=r.map(p=>`<tr${p.stock<10?' style="background:#fef2f2"':''}><td style="font-family:monospace;font-size:11px">${p.sku}</td><td style="font-weight:600">${p.name}</td><td>${p.category}</td><td style="text-align:center;${p.stock<10?'color:#dc2626;font-weight:700':''}">${p.stock}</td><td style="text-align:right">Rp${p.cost.toLocaleString("id-ID")}</td><td style="text-align:right">Rp${p.price.toLocaleString("id-ID")}</td><td style="text-align:right;font-weight:600">Rp${(p.stock*p.cost).toLocaleString("id-ID")}</td></tr>`).join("")}
 
 // SYSTEM
-async function loadSettings(){const r=await(await fetch("/api/settings")).json();document.getElementById("s-name").value=r.store_name||"";document.getElementById("s-address").value=r.store_address||"";document.getElementById("s-phone").value=r.store_phone||"";document.getElementById("s-ppn").value=r.ppn_rate||"11"}
-async function saveSettings(){await authFetch("/api/settings",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({store_name:document.getElementById("s-name").value,store_address:document.getElementById("s-address").value,store_phone:document.getElementById("s-phone").value,ppn_rate:document.getElementById("s-ppn").value})});alert("Pengaturan tersimpan!")}
-function backupDB(){window.open("/api/backup","_blank")}
-async function restoreDB(input){if(!input.files[0])return;if(!confirm("Restore akan mengganti database saat ini. Lanjut?"))return;const fd=new FormData();fd.append("file",input.files[0]);await authFetch("/api/restore",{method:"POST",body:fd});alert("Restore berhasil! Restart server.");input.value=""}
-
-// ADS
-// removed: var _adCards=[];
 async function loadSettings(){const r=await authFetch("/api/settings");const s=await r.json();document.getElementById("s-name").value=s.store_name||"";document.getElementById("s-address").value=s.store_address||"";document.getElementById("s-phone").value=s.store_phone||"";document.getElementById("s-ppn").value=s.ppn_rate||"11"}
 async function saveSettings(){await authFetch("/api/settings",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({store_name:document.getElementById("s-name").value,store_address:document.getElementById("s-address").value,store_phone:document.getElementById("s-phone").value,ppn_rate:document.getElementById("s-ppn").value})});alert("Pengaturan tersimpan!")}
-function backupDB(){window.open("/api/backup","_blank")}
+async function backupDB(){
+  const token=sessionStorage.getItem("token")||"";
+  const r=await fetch("/api/backup?token="+encodeURIComponent(token),{headers:{"Authorization":token}});
+  if(!r.ok){alert("Backup gagal");return;}
+  const blob=await r.blob();
+  const url=window.URL.createObjectURL(blob);
+  const a=document.createElement("a");
+  a.href=url;
+  a.download="pos_backup_"+new Date().toISOString().slice(0,10)+".db";
+  a.click();
+  window.URL.revokeObjectURL(url);
+}
 async function restoreDB(input){if(!input.files[0])return;if(!confirm("Restore akan mengganti database saat ini. Lanjut?"))return;const fd=new FormData();fd.append("file",input.files[0]);await authFetch("/api/restore",{method:"POST",body:fd});alert("Restore berhasil! Restart server.");input.value=""}
-
 
 // ADS
 var _adImages=[];
 var _adIdx=0;
 var _carouselTimer=null;
+
 function handleAdImageUpload(event){
   var files=event.target.files;
-  if(!files.length)return;
-  for(var i=0;i<files.length;i++){
+  if(!files||!files.length)return;
+  var count=files.length;
+  var loaded=0;
+  for(var i=0;i<count;i++){
     var reader=new FileReader();
     reader.onload=function(e){
       _adImages.push(e.target.result);
-      renderAdCarousel();
-      document.getElementById("ad-count-text").textContent=_adImages.length+" gambar";
+      loaded++;
+      if(loaded===count){
+        _adIdx=_adImages.length-1;
+        renderAdCarousel();
+        document.getElementById("ad-count-text").textContent=_adImages.length+" gambar";
+      }
     };
     reader.readAsDataURL(files[i]);
   }
+  event.target.value="";
 }
+
+function deleteAdImage(idx){
+  if(idx<0||idx>=_adImages.length)return;
+  _adImages.splice(idx,1);
+  if(_adIdx>=_adImages.length)_adIdx=Math.max(0,_adImages.length-1);
+  renderAdCarousel();
+  document.getElementById("ad-count-text").textContent=_adImages.length+" gambar";
+}
+
+function clearAdImages(){
+  if(!confirm("Hapus semua gambar iklan?"))return;
+  _adImages=[];_adIdx=0;
+  if(_carouselTimer)clearInterval(_carouselTimer);
+  renderAdCarousel();
+  document.getElementById("ad-count-text").textContent="0 gambar";
+}
+
 function renderAdCarousel(){
   var el=document.getElementById("ad-carousel");
   var dots=document.getElementById("ad-carousel-dots");
   var counter=document.getElementById("ad-carousel-counter");
+  var listEl=document.getElementById("ad-thumbnails-list");
+
   if(!_adImages.length){
     el.innerHTML='<p style="color:#64748b;font-size:14px">📷 Belum ada gambar</p>';
-    dots.innerHTML='';counter.textContent='';return;
+    dots.innerHTML='';counter.textContent='';
+    if(listEl)listEl.innerHTML='';
+    return;
   }
   el.innerHTML='<img src="'+_adImages[_adIdx]+'" style="width:100%;height:100%;object-fit:contain">';
   counter.textContent=(_adIdx+1)+"/"+_adImages.length;
   dots.innerHTML=_adImages.map(function(_,i){return '<div onclick="goSlide('+i+')" style="width:10px;height:10px;border-radius:50%;cursor:pointer;background:'+(i===_adIdx?'#2563eb':'rgba(255,255,255,.5)')+'"></div>'}).join("");
+
+  if(listEl){
+    listEl.innerHTML=_adImages.map(function(img,i){
+      return '<div style="position:relative;display:inline-block;margin:2px;border:2px solid '+(i===_adIdx?'#2563eb':'#e2e8f0')+';border-radius:8px;overflow:hidden;width:75px;height:45px;vertical-align:middle"><img src="'+img+'" style="width:100%;height:100%;object-fit:cover;cursor:pointer" onclick="goSlide('+i+')"><button onclick="deleteAdImage('+i+')" style="position:absolute;top:2px;right:2px;background:#ef4444;color:#fff;border:none;border-radius:50%;width:18px;height:18px;font-size:10px;cursor:pointer;line-height:18px;text-align:center">✕</button></div>';
+    }).join("");
+  }
+
   if(_adImages.length>1){
     if(_carouselTimer)clearInterval(_carouselTimer);
     _carouselTimer=setInterval(function(){_adIdx=(_adIdx+1)%_adImages.length;renderAdCarousel()},4000);
   }
 }
-function goSlide(i){_carouselIdx=i;renderAdCarousel()}
-function clearAdImages(){_adImages=[];_adIdx=0;if(_carouselTimer)clearInterval(_carouselTimer);renderAdCarousel();document.getElementById("ad-count-text").textContent="0 gambar"}
+function goSlide(i){_adIdx=i;renderAdCarousel()}
 function updateMarqueePreview(){var v=document.getElementById("a-marquee").value||"Running text preview...";document.getElementById("ad-marquee-preview").textContent=v}
 async function loadAdsSettings(){try{var r=await fetch("/api/settings");var s=await r.json();document.getElementById("a-marquee").value=s.ad_marquee||"🎉 Promo Spesial! Diskon menarik untuk semua produk! 🎉";updateMarqueePreview();_adImages=JSON.parse(s.ad_images||"[]");renderAdCarousel();document.getElementById("ad-count-text").textContent=_adImages.length+" gambar";}catch(e){}}
 async function saveAds(){await authFetch("/api/settings",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({ad_marquee:document.getElementById("a-marquee").value,ad_images:JSON.stringify(_adImages)})});alert("Iklan tersimpan!")}

@@ -22,6 +22,7 @@ var db *sql.DB
 // Session store with expiry
 type session struct {
 	role      string
+	username  string
 	expiresAt time.Time
 }
 
@@ -30,13 +31,14 @@ var (
 	sessionsMu sync.RWMutex
 )
 
-func createSession(role string) string {
+func createSession(role string, username string) string {
 	b := make([]byte, 32)
 	rand.Read(b)
 	token := hex.EncodeToString(b)
 	sessionsMu.Lock()
 	sessions[token] = &session{
 		role:      role,
+		username:  username,
 		expiresAt: time.Now().Add(8 * time.Hour), // 8 jam per shift
 	}
 	sessionsMu.Unlock()

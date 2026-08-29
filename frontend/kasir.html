@@ -133,6 +133,31 @@ input,select,button{font-family:inherit}
 .btn-modal{width:100%;background:#1e293b;color:#fff;border:none;border-radius:12px;padding:14px;font-size:15px;font-weight:700;cursor:pointer;margin-top:12px;transition:all .2s}
 .btn-modal:hover{background:#334155}
 .qris-img{width:220px;height:220px;border:2px solid #e2e8f0;border-radius:12px;margin:12px auto;display:block}
+
+/* RESPONSIVE LAYOUT & MEDIA QUERIES */
+.kasir-body{display:flex;flex:1;overflow:hidden}
+@media(max-width:1280px){
+  .products-grid{grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px}
+  .search-box{width:200px}
+  .cart-panel{min-width:300px}
+}
+@media(max-width:900px){
+  body{height:auto;overflow:auto}
+  #kasir-screen{height:auto!important;min-height:100vh}
+  .kasir-body{flex-direction:column;overflow:visible}
+  .products-area{overflow-y:visible;max-height:500px}
+  .cart-panel{min-width:100%;border-left:none;border-top:2px solid #e2e8f0}
+  .header{flex-direction:column;align-items:stretch;gap:8px}
+  .search-box{width:100%}
+  .login-card{width:90vw;padding:24px}
+}
+@media(max-width:600px){
+  .products-grid{grid-template-columns:repeat(2,1fr);gap:8px}
+  .navbar{padding:0 10px;font-size:11px}
+  .nav-right{gap:8px}
+  .btn-pay{font-size:16px;padding:12px}
+  .modal-card{width:94vw;padding:20px}
+}
 </style>
 </head>
 <body>
@@ -175,7 +200,7 @@ input,select,button{font-family:inherit}
     <button class="btn-logout" onclick="logoutKasir()">Logout</button>
   </div>
 </div>
-<div style="display:flex;flex:1;overflow:hidden">
+<div class="kasir-body">
 
 <!-- LEFT: Products -->
 <div style="flex:2;display:flex;flex-direction:column;overflow:hidden">
@@ -250,7 +275,7 @@ input,select,button{font-family:inherit}
 </div>
 
 <script>
-var cart=[],payment="CASH",ppnRate=11,currentUser="",currentDisplayName="",currentShiftId=null,activeMember=null,lastTxReceipt=null;
+var cart=[],payment="CASH",ppnRate=11,currentUser="",currentDisplayName="",currentToken="",currentShiftId=null,activeMember=null,lastTxReceipt=null;
 var API="";
 
 // LOGIN
@@ -260,7 +285,10 @@ async function doLogin(){
   var r=await fetch(API+"/api/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username:user,password:pass})});
   var d=await r.json();
   if(d.status==="ok"){
-    currentUser=d.username;currentDisplayName=d.display_name;
+    currentUser=d.username;currentDisplayName=d.display_name;currentToken=d.token;
+    sessionStorage.setItem("kasir_token",d.token);
+    sessionStorage.setItem("kasir_user",d.username);
+    sessionStorage.setItem("kasir_display_name",d.display_name);
     document.getElementById("login-screen").style.display="none";
     document.getElementById("shift-screen").style.display="flex";
     document.getElementById("shift-user-info").textContent=d.display_name;
@@ -274,10 +302,12 @@ async function doLogin(){
 async function openShift(){
   var name=document.getElementById("shift-name").value||"Shift";
   var cash=parseInt(document.getElementById("opening-cash").value)||500000;
-  var r=await fetch(API+"/api/shifts/open",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({cashier:currentUser,shift_name:name,opening_cash:cash})});
+  var token=currentToken||sessionStorage.getItem("kasir_token")||"";
+  var r=await fetch(API+"/api/shifts/open",{method:"POST",headers:{"Content-Type":"application/json","Authorization":token},body:JSON.stringify({cashier:currentUser,shift_name:name,opening_cash:cash})});
   var d=await r.json();
   if(d.shift_id){
     currentShiftId=d.shift_id;
+    sessionStorage.setItem("kasir_shift_id",d.shift_id);
     document.getElementById("shift-screen").style.display="none";
     document.getElementById("kasir-screen").style.display="flex";
     document.getElementById("kasir-user-info").textContent="Kasir: "+currentDisplayName+" | Shift: #"+currentShiftId;
@@ -286,12 +316,68 @@ async function openShift(){
 }
 
 // LOGOUT
-function logoutKasir(){
+async function logoutKasir(){
   if(!confirm("Logout dan tutup shift?"))return;
-  if(currentShiftId){fetch(API+"/api/shifts/"+currentShiftId+"/close-self",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({closing_cash:0})}).catch(function(){})}
-  currentUser="";currentDisplayName="";currentShiftId=null;activeMember=null;
+  var token=currentToken||sessionStorage.getItem("kasir_token")||"";
+  var shiftId=currentShiftId||sessionStorage.getItem("kasir_shift_id");
+  if(shiftId){
+    try{
+      await fetch(API+"/api/shifts/"+shiftId+"/close-self",{
+        method:"POST",
+        headers:{"Content-Type":"application/json","Authorization":token},
+        body:JSON.stringify({closing_cash:0})
+      });
+    }catch(e){}
+  }
+  currentUser="";currentDisplayName="";currentToken="";currentShiftId=null;activeMember=null;
+  sessionStorage.removeItem("kasir_token");
+  sessionStorage.removeItem("kasir_user");
+  sessionStorage.removeItem("kasir_display_name");
+  sessionStorage.removeItem("kasir_shift_id");
   document.getElementById("kasir-screen").style.display="none";
   document.getElementById("login-screen").style.display="flex";
+}
+
+// RESTORE SESSION ON REFRESH
+async function restoreKasirSession(){
+  var token=sessionStorage.getItem("kasir_token");
+  var user=sessionStorage.getItem("kasir_user");
+  var disp=sessionStorage.getItem("kasir_display_name");
+  var shiftId=sessionStorage.getItem("kasir_shift_id");
+
+  if(token && user){
+    currentUser=user;
+    currentDisplayName=disp||user;
+    currentToken=token;
+
+    if(shiftId){
+      currentShiftId=parseInt(shiftId);
+      document.getElementById("login-screen").style.display="none";
+      document.getElementById("shift-screen").style.display="none";
+      document.getElementById("kasir-screen").style.display="flex";
+      document.getElementById("kasir-user-info").textContent="Kasir: "+currentDisplayName+" | Shift: #"+currentShiftId;
+      loadProducts();
+    }else{
+      try{
+        var r=await fetch(API+"/api/shifts/active");
+        var activeShifts=await r.json();
+        var myShift=activeShifts.find(function(s){return s.cashier===user});
+        if(myShift){
+          currentShiftId=myShift.id;
+          sessionStorage.setItem("kasir_shift_id",myShift.id);
+          document.getElementById("login-screen").style.display="none";
+          document.getElementById("shift-screen").style.display="none";
+          document.getElementById("kasir-screen").style.display="flex";
+          document.getElementById("kasir-user-info").textContent="Kasir: "+currentDisplayName+" | Shift: #"+currentShiftId;
+          loadProducts();
+          return;
+        }
+      }catch(e){}
+      document.getElementById("login-screen").style.display="none";
+      document.getElementById("shift-screen").style.display="flex";
+      document.getElementById("shift-user-info").textContent=currentDisplayName;
+    }
+  }
 }
 
 // PRODUCTS
@@ -466,7 +552,7 @@ document.addEventListener("keydown",function(e){
 });
 
 // INIT
-loadProducts();loadPPN();connectWS();
+restoreKasirSession();loadProducts();loadPPN();connectWS();
 document.addEventListener("click",function(e){if(!e.target.closest("#member-id")&&!e.target.closest("#member-dropdown"))document.getElementById("member-dropdown").style.display="none"});
 </script>
 </body>

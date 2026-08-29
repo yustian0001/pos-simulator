@@ -45,7 +45,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestSessionCreation(t *testing.T) {
-	token := createSession("admin")
+	token := createSession("admin", "admin")
 	if token == "" {
 		t.Error("Session token should not be empty")
 	}
@@ -65,7 +65,7 @@ func TestSessionCreation(t *testing.T) {
 
 func TestSessionExpiry(t *testing.T) {
 	// Create session that expires immediately
-	token := createSession("kasir")
+	token := createSession("kasir", "kasir1")
 	sessionsMu.Lock()
 	sessions[token].expiresAt = time.Now().Add(-1 * time.Second)
 	sessionsMu.Unlock()
@@ -241,7 +241,7 @@ func TestShiftOwnership(t *testing.T) {
 	db.QueryRow("SELECT id FROM shifts WHERE shift_name='Test' AND cashier='kasir1'").Scan(&shiftID)
 
 	// Create session for "kasir2" (wrong cashier)
-	token2 := createSession("kasir2")
+	token2 := createSession("kasir", "kasir2")
 
 	// Try to close-shift-self as kasir2 on kasir1's shift
 	req, _ := http.NewRequest("POST", fmt.Sprintf("/api/shifts/%d/close-self", shiftID), strings.NewReader(`{"closing_cash":50000}`))

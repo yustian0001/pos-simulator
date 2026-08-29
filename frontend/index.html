@@ -20,6 +20,9 @@ h1{font-size:32px;font-weight:900;color:#fff;letter-spacing:-0.5px;margin-bottom
 .card p{color:#94a3b8;font-size:13px;line-height:1.5;margin-bottom:4px}
 .btn{display:inline-flex;align-items:center;gap:6px;font-size:14px;font-weight:600;margin-top:16px;transition:color .2s}
 .btn svg{width:16px;height:16px}
+.portal-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:24px}
+@media(max-width:900px){.portal-grid{grid-template-columns:repeat(2,1fr);gap:16px}body{overflow-y:auto;padding:32px 0}}
+@media(max-width:600px){.portal-grid{grid-template-columns:1fr;gap:16px}.card{padding:24px 20px}}
 </style>
 </head>
 <body>
@@ -31,7 +34,7 @@ h1{font-size:32px;font-weight:900;color:#fff;letter-spacing:-0.5px;margin-bottom
     <h1>POS Simulator</h1>
     <p class="sub">Sistem Point of Sale Indonesia</p>
   </div>
-  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:24px">
+  <div class="portal-grid">
     <a href="/admin-login" class="card">
       <div class="icon-box" style="background:linear-gradient(135deg,#ef4444,#dc2626)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>

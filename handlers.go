@@ -159,7 +159,7 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token := createSession(user.Role)
+	token := createSession(user.Role, user.Username)
 	jsonResponse(w, map[string]string{"status": "ok", "username": user.Username, "display_name": user.DisplayName, "role": user.Role, "token": token}, 200)
 }
 
@@ -173,6 +173,9 @@ func handleLogout(w http.ResponseWriter, r *http.Request) {
 
 func requireAuth(r *http.Request, requiredRole string) bool {
 	token := r.Header.Get("Authorization")
+	if token == "" {
+		token = r.URL.Query().Get("token")
+	}
 	if token == "" {
 		return false
 	}
@@ -379,6 +382,13 @@ func handleGetShifts(w http.ResponseWriter, r *http.Request) {
 	if shifts == nil {
 		shifts = []Shift{}
 	}
+	for i := range shifts {
+		if shifts[i].Status == "open" {
+			var cs int
+			db.QueryRow("SELECT COALESCE(SUM(grand_total),0) FROM transactions WHERE shift_id=? AND payment='CASH' AND status='completed'", shifts[i].ID).Scan(&cs)
+			shifts[i].CashSales = cs
+		}
+	}
 	jsonResponse(w, shifts, 200)
 }
 
@@ -394,6 +404,9 @@ func handleGetActiveShifts(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var s Shift
 		rows.Scan(&s.ID, &s.ShiftName, &s.Cashier, &s.OpenedAt, &s.ClosedAt, &s.OpeningCash, &s.ClosingCash, &s.ExpectedCash, &s.CashSales, &s.CashOut, &s.Discrepancy, &s.TotalSales, &s.TotalTx, &s.Status)
+		var cs int
+		db.QueryRow("SELECT COALESCE(SUM(grand_total),0) FROM transactions WHERE shift_id=? AND payment='CASH' AND status='completed'", s.ID).Scan(&cs)
+		s.CashSales = cs
 		shifts = append(shifts, s)
 	}
 	if shifts == nil {
@@ -424,20 +437,30 @@ func handleCloseShift(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var cashSales, cashOut, totalSales, totalTx int
+	var cashSales, qrisSales, cashOut, totalSales, totalTx int
 	db.QueryRow("SELECT COALESCE(SUM(grand_total),0) FROM transactions WHERE shift_id=? AND payment='CASH' AND status='completed'", id).Scan(&cashSales)
+	db.QueryRow("SELECT COALESCE(SUM(grand_total),0) FROM transactions WHERE shift_id=? AND payment!='CASH' AND status='completed'", id).Scan(&qrisSales)
 	db.QueryRow("SELECT COALESCE(SUM(amount),0) FROM cash_log WHERE shift_id=? AND type='cash_out'", id).Scan(&cashOut)
 	db.QueryRow("SELECT COALESCE(SUM(grand_total),0), COUNT(*) FROM transactions WHERE shift_id=? AND status='completed'", id).Scan(&totalSales, &totalTx)
 
 	expected := shift.OpeningCash + cashSales - cashOut
-	discrepancy := req.ClosingCash - expected
+	closingCash := expected
+	discrepancy := 0
+	if req.ClosingCash > 0 {
+		closingCash = req.ClosingCash
+		discrepancy = closingCash - expected
+	}
 
 	db.Exec("UPDATE shifts SET closed_at=?,closing_cash=?,expected_cash=?,cash_sales=?,cash_out=?,cash_discrepancy=?,total_sales=?,total_tx=?,status='closed' WHERE id=?",
-		now(), req.ClosingCash, expected, cashSales, cashOut, discrepancy, totalSales, totalTx, id)
+		now(), closingCash, expected, cashSales, cashOut, discrepancy, totalSales, totalTx, id)
+	if qrisSales > 0 {
+		db.Exec("INSERT INTO cash_log (shift_id,type,amount,description) VALUES (?,?,?,?)",
+			id, "qris_sales", qrisSales, fmt.Sprintf("Penjualan QRIS/Non-Tunai shift %s", shift.ShiftName))
+	}
 	db.Exec("INSERT INTO cash_log (shift_id,type,amount,description) VALUES (?,?,?,?)",
-		id, "closing", req.ClosingCash, fmt.Sprintf("Closing cash shift %s", shift.ShiftName))
+		id, "closing", closingCash, fmt.Sprintf("Closing cash shift %s", shift.ShiftName))
 
-	jsonResponse(w, map[string]interface{}{"status": "ok", "expected": expected, "closing": req.ClosingCash, "discrepancy": discrepancy}, 200)
+	jsonResponse(w, map[string]interface{}{"status": "ok", "expected": expected, "closing": closingCash, "discrepancy": discrepancy}, 200)
 }
 
 func handleCloseShiftSelf(w http.ResponseWriter, r *http.Request) {
@@ -448,14 +471,23 @@ func handleCloseShiftSelf(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	sessionsMu.RLock()
-	cashier := sessions[token].role
+	sess, ok := sessions[token]
 	sessionsMu.RUnlock()
+	if !ok || sess == nil {
+		jsonResponse(w, map[string]string{"error": "Login required"}, 401)
+		return
+	}
 
 	id := parseID(r.URL.Path)
 	if id == 0 {
 		jsonResponse(w, map[string]string{"error": "Invalid ID"}, 400)
 		return
 	}
+
+	var req struct {
+		ClosingCash int `json:"closing_cash"`
+	}
+	decodeJSON(r, &req)
 
 	var shift Shift
 	err := db.QueryRow("SELECT id,opening_cash,shift_name FROM shifts WHERE id=? AND status='open'", id).
@@ -465,29 +497,37 @@ func handleCloseShiftSelf(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Ownership check
 	var shiftCashier string
 	db.QueryRow("SELECT cashier FROM shifts WHERE id=?", id).Scan(&shiftCashier)
-	if shiftCashier != cashier {
+	if sess.role != "admin" && shiftCashier != "" && shiftCashier != sess.username && shiftCashier != sess.role {
 		jsonResponse(w, map[string]string{"error": "Shift bukan milik kasir ini"}, 403)
 		return
 	}
 
-	var cashSales, cashOut, totalSales, totalTx int
+	var cashSales, qrisSales, cashOut, totalSales, totalTx int
 	db.QueryRow("SELECT COALESCE(SUM(grand_total),0) FROM transactions WHERE shift_id=? AND payment='CASH' AND status='completed'", id).Scan(&cashSales)
+	db.QueryRow("SELECT COALESCE(SUM(grand_total),0) FROM transactions WHERE shift_id=? AND payment!='CASH' AND status='completed'", id).Scan(&qrisSales)
 	db.QueryRow("SELECT COALESCE(SUM(amount),0) FROM cash_log WHERE shift_id=? AND type='cash_out'", id).Scan(&cashOut)
 	db.QueryRow("SELECT COALESCE(SUM(grand_total),0), COUNT(*) FROM transactions WHERE shift_id=? AND status='completed'", id).Scan(&totalSales, &totalTx)
 
 	expected := shift.OpeningCash + cashSales - cashOut
-	// Auto-close: closing_cash = expected (no discrepancy)
 	closingCash := expected
+	discrepancy := 0
+	if req.ClosingCash > 0 {
+		closingCash = req.ClosingCash
+		discrepancy = closingCash - expected
+	}
 
 	db.Exec("UPDATE shifts SET closed_at=?,closing_cash=?,expected_cash=?,cash_sales=?,cash_out=?,cash_discrepancy=?,total_sales=?,total_tx=?,status='closed' WHERE id=?",
-		now(), closingCash, expected, cashSales, cashOut, 0, totalSales, totalTx, id)
+		now(), closingCash, expected, cashSales, cashOut, discrepancy, totalSales, totalTx, id)
+	if qrisSales > 0 {
+		db.Exec("INSERT INTO cash_log (shift_id,type,amount,description) VALUES (?,?,?,?)",
+			id, "qris_sales", qrisSales, fmt.Sprintf("Penjualan QRIS/Non-Tunai shift %s", shift.ShiftName))
+	}
 	db.Exec("INSERT INTO cash_log (shift_id,type,amount,description) VALUES (?,?,?,?)",
 		id, "closing", closingCash, fmt.Sprintf("Closing shift %s (auto)", shift.ShiftName))
 
-	jsonResponse(w, map[string]interface{}{"status": "ok", "expected": expected, "closing": closingCash, "discrepancy": 0}, 200)
+	jsonResponse(w, map[string]interface{}{"status": "ok", "expected": expected, "closing": closingCash, "discrepancy": discrepancy}, 200)
 }
 
 // === Cash ===
@@ -694,7 +734,11 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 		req.CustomerName, nullStr(req.MemberID), req.Cashier, req.Notes)
 
 	if req.ShiftID > 0 {
-		sqlTx.Exec("UPDATE shifts SET total_sales=total_sales+?, total_tx=total_tx+1 WHERE id=?", grandTotal, req.ShiftID)
+		if req.Payment == "CASH" {
+			sqlTx.Exec("UPDATE shifts SET total_sales=total_sales+?, cash_sales=cash_sales+?, total_tx=total_tx+1 WHERE id=?", grandTotal, grandTotal, req.ShiftID)
+		} else {
+			sqlTx.Exec("UPDATE shifts SET total_sales=total_sales+?, total_tx=total_tx+1 WHERE id=?", grandTotal, req.ShiftID)
+		}
 	}
 	if req.MemberID != "" {
 		sqlTx.Exec("UPDATE members SET points=points+? WHERE member_id=?", grandTotal/1000, req.MemberID)
@@ -812,9 +856,8 @@ func handleGetTransactions(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleVoidTransaction(w http.ResponseWriter, r *http.Request) {
-	csrf := r.Header.Get("X-CSRF-Token")
-	if csrf == "" || !validateCSRF(csrf) {
-		jsonResponse(w, map[string]string{"error": "Invalid CSRF token"}, 403)
+	if !requireAuth(r, "") {
+		jsonResponse(w, map[string]string{"error": "Login required"}, 401)
 		return
 	}
 	parts := strings.Split(r.URL.Path, "/")
@@ -1605,6 +1648,9 @@ func handleUpdateAISettings(w http.ResponseWriter, r *http.Request) {
 // === SESSION MIDDLEWARE ===
 func getSessionUser(r *http.Request) (string, string) {
 	token := r.Header.Get("Authorization")
+	if token == "" {
+		token = r.URL.Query().Get("token")
+	}
 	if token == "" {
 		return "", ""
 	}

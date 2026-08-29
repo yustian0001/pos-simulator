@@ -2,12 +2,23 @@
 <html lang="id">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=1920,height=1080,initial-scale=1.0">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>Customer Display</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;font-family:system-ui,-apple-system,sans-serif}
-html,body{width:1920px;height:1080px;overflow:hidden}
+html,body{width:100%;height:100vh;overflow:hidden}
 body{display:flex;background:#1a0a0a}
+@media(max-width:1024px){
+  .left{width:60%}
+  .right{width:40%}
+  .r-total-amount{font-size:24px}
+  .ad-carousel-wrap{padding:16px 16px 0}
+}
+@media(max-width:768px){
+  body{flex-direction:column;height:auto;overflow-y:auto}
+  .left{width:100%;min-height:450px}
+  .right{width:100%;min-height:450px;border-left:none;border-top:2px solid rgba(212,175,55,.3)}
+}
 @keyframes slideIn{from{opacity:0;transform:translateX(-20px)}to{opacity:1;transform:translateX(0)}}
 @keyframes pulseGlow{0%,100%{box-shadow:0 0 20px rgba(212,175,55,.3)}50%{box-shadow:0 0 40px rgba(212,175,55,.6)}}
 @keyframes marquee{0%{transform:translateX(100%)}100%{transform:translateX(-100%)}}
@@ -100,7 +111,17 @@ body{display:flex;background:#1a0a0a}
   <div class="r-total">
     <div class="r-total-label">Total Belanja</div>
     <div class="r-total-amount" id="grand-total">Rp 0</div>
-    <div class="r-total-sub" id="payment-info"></div>
+    <div id="payment-details" style="display:none;margin-top:10px;padding-top:8px;border-top:1px dashed rgba(212,175,55,.3)">
+      <div style="display:flex;justify-content:space-between;font-size:13px;color:#d6d3d1;margin-bottom:4px">
+        <span>Tunai / Bayar:</span>
+        <span id="cash-paid-display" style="font-weight:700;color:#fff">Rp 0</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:18px;color:#4ade80;font-weight:800">
+        <span>Kembali:</span>
+        <span id="change-display">Rp 0</span>
+      </div>
+    </div>
+    <div class="r-total-sub" id="payment-info" style="margin-top:6px"></div>
   </div>
 </div>
 
@@ -185,6 +206,7 @@ function handleCartUpdate(data){
   liveItems=data.items||[];
   var total=data.total||0;
   renderLiveItems();
+  document.getElementById("payment-details").style.display="none";
   document.getElementById("grand-total").textContent="Rp "+total.toLocaleString("id-ID");
   document.getElementById("payment-info").textContent=liveItems.length+" item dipilih";
   document.getElementById("status-text").textContent="Memilih produk...";
@@ -218,6 +240,15 @@ function handleNewTx(tx){
   liveItems=(tx.items||[]).map(function(it){return{name:it.name,qty:it.qty,price:it.price}});
   renderLiveItems();
   document.getElementById("grand-total").textContent="Rp "+(tx.grand_total||0).toLocaleString("id-ID");
+  
+  if(tx.payment==="CASH" && (tx.amount_paid||0)>0){
+    document.getElementById("payment-details").style.display="block";
+    document.getElementById("cash-paid-display").textContent="Rp "+(tx.amount_paid||0).toLocaleString("id-ID");
+    document.getElementById("change-display").textContent="Rp "+(tx.change||0).toLocaleString("id-ID");
+  }else{
+    document.getElementById("payment-details").style.display="none";
+  }
+
   document.getElementById("payment-info").textContent="✅ "+(tx.payment||"CASH")+" — Selesai";
   document.getElementById("status-text").textContent="Transaksi selesai!";
   document.getElementById("status-text").style.color="#22c55e";
@@ -231,6 +262,7 @@ function closeTransaction(){
   liveItems=[];
   document.getElementById("items-list").innerHTML='<div style="text-align:center;padding:60px 0"><p style="color:#78716c;font-size:14px">Menunggu transaksi...</p></div>';
   document.getElementById("grand-total").textContent="Rp 0";
+  document.getElementById("payment-details").style.display="none";
   document.getElementById("payment-info").textContent="";
   document.getElementById("status-text").textContent="Menunggu...";
   document.getElementById("status-text").style.color="#4ade80";
