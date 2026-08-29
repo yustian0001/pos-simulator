@@ -1238,6 +1238,42 @@ func handleGetCSRFToken(w http.ResponseWriter, r *http.Request) {
 	jsonResponse(w, map[string]string{"csrf_token": token}, 200)
 }
 
+
+func handleRestockCandidates(w http.ResponseWriter, r *http.Request) {
+	var threshold int = 10
+	thresholdStr := r.URL.Query().Get("threshold")
+	if thresholdStr != "" {
+		threshold, _ = strconv.Atoi(thresholdStr)
+	}
+	var aiThreshold string
+	db.QueryRow("SELECT value FROM settings WHERE key='ai_stock_threshold'").Scan(&aiThreshold)
+	if aiThreshold != "" {
+		t, _ := strconv.Atoi(aiThreshold)
+		if t > 0 { threshold = t }
+	}
+	rows, _ := db.Query("SELECT id,sku,name,stock,category,price,cost FROM products WHERE active=1 AND stock<? ORDER BY stock", threshold)
+	defer rows.Close()
+	var candidates []map[string]interface{}
+	for rows.Next() {
+		var id, stock, price, cost int
+		var sku, name, category string
+		rows.Scan(&id, &sku, &name, &stock, &category, &price, &cost)
+		margin := 0
+		if cost > 0 { margin = ((price - cost) * 100) / cost }
+		candidates = append(candidates, map[string]interface{}{
+			"product_id": id, "sku": sku, "name": name,
+			"stock": stock, "category": category,
+			"price": price, "cost": cost, "margin_pct": margin,
+		})
+	}
+	jsonResponse(w, map[string]interface{}{
+		"version": "1.0",
+		"threshold": threshold,
+		"candidates": candidates,
+		"count": len(candidates),
+	}, 200)
+}
+
 func handleAIWebhook(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
 		jsonResponse(w, map[string]string{"error": "POST only"}, 405)
@@ -1277,20 +1313,43 @@ func handleAIWebhook(w http.ResponseWriter, r *http.Request) {
 			jsonResponse(w, map[string]string{"error": "product_id and new_stock required"}, 400)
 			return
 		}
-		// Idempotency: check if request_id already processed
+		// Check ai_mode setting
+		var aiMode string
+		db.QueryRow("SELECT value FROM settings WHERE key='ai_mode'").Scan(&aiMode)
+		if aiMode == "suggest_only" {
+			auditLog("ai_suggestion", "product", fmt.Sprintf("%d", update.ProductID), "AI_AGENT", fmt.Sprintf("Suggested stock=%d reason=%s (suggest_only mode)", update.NewStock, update.Reason))
+			jsonResponse(w, map[string]interface{}{"status": "ok", "applied": false, "message": "Suggestion logged (suggest_only mode)"}, 200)
+			return
+		}
+		// Check max daily updates
+		var maxDaily int
+		maxDailyStr := ""
+		db.QueryRow("SELECT value FROM settings WHERE key='ai_max_daily_updates'").Scan(&maxDailyStr)
+		if maxDailyStr != "" {
+			maxDaily, _ = strconv.Atoi(maxDailyStr)
+		}
+		if maxDaily > 0 {
+			var todayCount int
+			db.QueryRow("SELECT COUNT(*) FROM audit_log WHERE action='ai_stock_update' AND DATE(created_at)=DATE('now')").Scan(&todayCount)
+			if todayCount >= maxDaily {
+				jsonResponse(w, map[string]interface{}{"status": "error", "applied": false, "message": fmt.Sprintf("Daily limit reached (%d/%d)", todayCount, maxDaily)}, 429)
+				return
+			}
+		}
+		// Idempotency
 		if req.RequestID != "" {
 			var exists int
 			db.QueryRow("SELECT COUNT(*) FROM audit_log WHERE details LIKE ?", "%request_id:"+req.RequestID+"%").Scan(&exists)
 			if exists > 0 {
-				jsonResponse(w, map[string]string{"status": "ok", "message": "Already processed"}, 200)
+				jsonResponse(w, map[string]interface{}{"status": "ok", "applied": false, "message": "Already processed"}, 200)
 				return
 			}
 		}
 		db.Exec("UPDATE products SET stock=? WHERE id=?", update.NewStock, update.ProductID)
-		auditLog("stock_update", "product", fmt.Sprintf("%d", update.ProductID), "ai_webhook", fmt.Sprintf("stock=%d reason=%s request_id=%s", update.NewStock, update.Reason, req.RequestID))
+		auditLog("ai_stock_update", "product", fmt.Sprintf("%d", update.ProductID), "AI_AGENT", fmt.Sprintf("stock=%d reason=%s request_id=%s", update.NewStock, update.Reason, req.RequestID))
 		db.Exec("INSERT INTO cash_log (shift_id,type,amount,description) VALUES (0,'stock_adjust',0,?)",
 			fmt.Sprintf("AI stock update: product_id=%d, stock=%d, reason=%s", update.ProductID, update.NewStock, update.Reason))
-		jsonResponse(w, map[string]string{"status": "ok"}, 200)
+		jsonResponse(w, map[string]interface{}{"status": "ok", "applied": true, "message": "Stock updated"}, 200)
 
 	case "restock_recommendation":
 		// AI agent baca stok rendah
