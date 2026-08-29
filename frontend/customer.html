@@ -80,9 +80,15 @@ body{display:flex;background:#1a0a0a}
 
 <!-- RIGHT: Transaksi (30%) -->
 <div class="right">
-  <div class="r-header">
-    <h2>🛒 Belanjaan</h2>
-    <div class="r-clock" id="clock">--:--</div>
+  <div class="r-header" style="flex-direction:column;gap:4px;padding:12px 16px">
+    <div style="display:flex;justify-content:space-between;align-items:center;width:100%">
+      <h2 style="font-size:14px;font-weight:700;color:#fef3c7" id="store-name-header">🛒 Belanjaan</h2>
+      <div class="r-clock" id="clock">--:--</div>
+    </div>
+    <div style="display:flex;justify-content:space-between;width:100%;font-size:11px">
+      <span style="color:#D4AF37" id="kasir-display">Kasir: --</span>
+      <span style="color:#a8a29e" id="member-display"></span>
+    </div>
   </div>
   <div class="r-status" id="r-status">
     <div class="dot" style="background:#22c55e"></div>
@@ -143,6 +149,8 @@ function renderCarousel(){
 }
 function goSlide(i){_adIdx=i;renderCarousel()}
 loadAds();
+async function loadStoreName(){try{var r=await fetch("/api/settings");var s=await r.json();if(s.store_name)document.getElementById("store-name-header").textContent="🛒 "+s.store_name;}catch(e){}}
+loadStoreName();
 
 // WebSocket
 var liveItems=[];
@@ -182,6 +190,9 @@ function handleCartUpdate(data){
   document.getElementById("status-text").textContent="Memilih produk...";
   document.getElementById("status-text").style.color="#fbbf24";
   document.querySelector("#r-status .dot").style.background="#fbbf24";
+  if(data.cashier)document.getElementById("kasir-display").textContent="Kasir: "+data.cashier;
+  if(data.member)document.getElementById("member-display").textContent="👤 "+data.member;
+  else document.getElementById("member-display").textContent="";
 }
 
 function renderLiveItems(){
@@ -211,6 +222,8 @@ function handleNewTx(tx){
   document.getElementById("status-text").textContent="Transaksi selesai!";
   document.getElementById("status-text").style.color="#22c55e";
   document.querySelector("#r-status .dot").style.background="#22c55e";
+  if(tx.cashier)document.getElementById("kasir-display").textContent="Kasir: "+tx.cashier;
+  if(tx.member)document.getElementById("member-display").textContent="👤 "+tx.member;
 }
 
 function closeTransaction(){
@@ -222,6 +235,8 @@ function closeTransaction(){
   document.getElementById("status-text").textContent="Menunggu...";
   document.getElementById("status-text").style.color="#4ade80";
   document.querySelector("#r-status .dot").style.background="#22c55e";
+  document.getElementById("kasir-display").textContent="Kasir: --";
+  document.getElementById("member-display").textContent="";
 }
 
 connectWS();

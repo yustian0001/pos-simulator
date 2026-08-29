@@ -317,7 +317,7 @@ function broadcastCart(){
   var tax=Math.round(total*ppnRate/100);
   var grand=total+tax;
   var items=cart.map(function(i){return{name:i.name,qty:i.qty,price:i.price}});
-  fetch(API+"/api/ws-broadcast",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({type:"cart_update",data:{items:items,total:grand}})}).catch(function(){});
+  fetch(API+"/api/ws-broadcast",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({type:"cart_update",data:{items:items,total:grand,cashier:currentDisplayName,member:activeMember?activeMember.name:""}})}).catch(function(){});
 }
 function addFromCard(el){
   addToCart(parseInt(el.dataset.id),el.dataset.name,parseInt(el.dataset.price),parseInt(el.dataset.stock));
@@ -394,7 +394,7 @@ async function checkout(){
     document.getElementById("modal-receipt").innerHTML="<b>Items:</b> "+tx.items.map(function(i){return i.name+" x"+i.qty}).join(", ");
     document.getElementById("payment-modal").style.display="flex";
     cart=[];document.getElementById("amount-paid").value="";renderCart();
-    fetch(API+"/api/ws-broadcast",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({type:"new_transaction",data:tx})}).catch(function(){});
+    fetch(API+"/api/ws-broadcast",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({type:"new_transaction",data:{...tx,cashier:currentDisplayName,member:activeMember?activeMember.name:""}})}).catch(function(){});
   }
 }
 function closePaymentModal(){document.getElementById("payment-modal").style.display="none"}
@@ -418,7 +418,7 @@ async function searchMember(){
       var dd=document.getElementById("member-dropdown");
       if(!members.length){dd.innerHTML='<div style="padding:8px;color:#94a3b8;font-size:11px">Tidak ditemukan</div>';dd.style.display="block";return}
       dd.innerHTML=members.map(function(m){
-        return '<div class="member-item" onclick="selectMember(\''+m.member_id+'\',\''+m.name+'\','+m.points+',\''+m.tier+'\',\''+m.phone+'\)"><div><b>'+m.name+'</b> <span style="color:#94a3b8;font-size:10px">'+m.member_id+'</span></div><div class="phone">'+(m.phone||'')+'</div></div>';
+        return '<div class="member-item" data-mid="'+m.member_id+'" data-name="'+m.name+'" data-points="'+m.points+'" data-tier="'+m.tier+'" data-phone="'+(m.phone||'')+'" onclick="selectMemberFromEl(this)"><div><b>'+m.name+'</b> <span style="color:#94a3b8;font-size:10px">'+m.member_id+'</span></div><div class="phone">'+(m.phone||'')+'</div></div>';
       }).join("");
       dd.style.display="block";
     }catch(e){}

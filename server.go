@@ -223,7 +223,17 @@ func main() {
 		freshURL := url + "?v=" + cacheBust
 		fmt.Printf("[POS] Opening browser: %s\n", freshURL)
 		if runtime.GOOS == "windows" {
-			exec.Command("cmd", "/c", "start", "chrome", "--kiosk-printing", "--disable-features=TranslateUI", "--no-first-run", freshURL).Start()
+			// Use separate Chrome profile for POS (always kiosk-printing)
+		myPath, _ := os.Executable()
+		posDir := filepath.Dir(myPath)
+		chromeProfile := filepath.Join(posDir, "chrome-pos-profile")
+		exec.Command("cmd", "/c", "start", "chrome",
+			"--user-data-dir="+chromeProfile,
+			"--kiosk-printing",
+			"--disable-features=TranslateUI",
+			"--no-first-run",
+			"--disable-session-crashed-bubble",
+			freshURL).Start()
 		} else if runtime.GOOS == "darwin" {
 			exec.Command("open", freshURL).Start()
 		} else {
