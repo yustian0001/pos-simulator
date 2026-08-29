@@ -246,6 +246,7 @@ func initDB() {
 		if err != nil {
 			log.Fatal(err)
 		}
+		db.Exec("PRAGMA foreign_keys = ON")
 		fmt.Printf("[POS] DB: %s\n", dbPath)
 	}
 
@@ -345,13 +346,25 @@ func initDB() {
 		key TEXT PRIMARY KEY,
 		action TEXT NOT NULL,
 		response_json TEXT NOT NULL,
+		payload_hash TEXT NOT NULL DEFAULT '',
+		status_code INTEGER DEFAULT 200,
 		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 		expires_at TIMESTAMP NOT NULL
+	)`)
+
+	// Schema migrations
+	db.Exec(`CREATE TABLE IF NOT EXISTS schema_migrations (
+		version INTEGER PRIMARY KEY,
+		name TEXT NOT NULL,
+		applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		checksum TEXT DEFAULT ''
 	)`)
 
 	// Migration: add columns that may not exist in older DBs
 	db.Exec("ALTER TABLE users ADD COLUMN password_changed INTEGER DEFAULT 0")
 	db.Exec("ALTER TABLE products ADD COLUMN tax_rate REAL DEFAULT -1")
+
+	db.Exec("INSERT OR IGNORE INTO schema_migrations (version,name,checksum) VALUES (1,'initial','v2.2')")
 
 	// Seed data
 	cats := [][2]string{{"Makanan", "🍜"}, {"Minuman", "🥤"}, {"Snack", "🍿"}, {"Lainnya", "📦"}}
