@@ -164,6 +164,7 @@ func main() {
 	mux.HandleFunc("/api/backup", adminOnly(handleBackup))
 	mux.HandleFunc("/api/restore", adminOnly(handleRestore))
 	mux.HandleFunc("/api/ai/webhook", handleAIWebhook)
+	mux.HandleFunc("/api/display-token", handleGenerateDisplayToken)
 	mux.HandleFunc("/api/ai/restock-candidates", handleRestockCandidates)
 	mux.HandleFunc("/api/ai/report", handleAIReport)
 	mux.HandleFunc("/api/ai/settings", func(w http.ResponseWriter, r *http.Request) {

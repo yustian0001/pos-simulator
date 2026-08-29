@@ -1635,3 +1635,28 @@ func handleChangePassword(w http.ResponseWriter, r *http.Request) {
 	jsonResponse(w, map[string]interface{}{"status": "ok", "message": "Password berhasil diubah"}, 200)
 }
 
+
+// === DISPLAY TOKEN ===
+var displayTokens = make(map[string]time.Time)
+
+func generateDisplayToken() string {
+	token := generateID("DISP", 8)
+	displayTokens[token] = time.Now().Add(24 * time.Hour)
+	return token
+}
+
+func validateDisplayToken(token string) bool {
+	if token == "" { return false }
+	exp, ok := displayTokens[token]
+	if !ok { return false }
+	if time.Now().After(exp) {
+		delete(displayTokens, token)
+		return false
+	}
+	return true
+}
+
+func handleGenerateDisplayToken(w http.ResponseWriter, r *http.Request) {
+	token := generateDisplayToken()
+	jsonResponse(w, map[string]interface{}{"token": token, "expires_in": 86400}, 200)
+}
