@@ -630,7 +630,7 @@ Credentials are generated on first run. Admin must change password on first logi
 |----------|------|--------|
 | 🔴 High | Full auth matrix (cashier/admin per endpoint) | Security |
 | 🔴 High | Automated test suite (`go test ./...`) | Regression prevention |
-| 🔴 High | Database migration system (schema_migrations) | Schema tracking |
+| 🔴 High | Migration version tracking + upgrade tests | Currently only table exists |
 | 🟡 Medium | Split handlers.go → domain files | Maintainability |
 | 🟡 Medium | Service/repo layer | AI integration at function level |
 | 🟡 Medium | Void reversal (points + shift correction) | Business consistency |
@@ -645,10 +645,10 @@ Credentials are generated on first run. Admin must change password on first logi
 
 | Criteria | Status |
 |----------|--------|
-| 13 tables + PRAGMA FK + schema_migrations | ✅ Implemented |
+| 13 tables + PRAGMA FK + schema_migrations | ⚠️ Partial (table exists, no version tracking) | Not verified |
 | Tidak ada secret di source/binary/repo | ⚠️ Partial (default removed, config.json still embedded) |
 | Endpoint sensitif ada auth | ⚠️ Partial (admin endpoints done, cashier endpoints need review) |
-| Checkout atomic + rollback | Implemented | Manual verified; concurrent test: Not verified |
+| Checkout atomic + rollback | Implemented | Manual verified |
 | Semua stok punya inventory movement | ✅ Implemented (checkout + void) |
 | Void idempotent + reversal | ✅ Implemented |
 | AI idempotent | ✅ Implemented (atomic tx) |
