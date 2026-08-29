@@ -1,4 +1,4 @@
-# POS Simulator v2.2 — Final Review Document
+# POS Simulator v2.2 — Pre-Production Review Document
 
 **Last Updated:** August 29, 2026, 14:00 WIB
 **Version:** 2.2 (Go)
@@ -515,7 +515,7 @@ Semua perubahan stok tercatat di `inventory_movements`:
 | Login (admin/kasir) | ✅ Manually verified | Manual |
 | Password change | ✅ Implemented | Manual |
 | Product CRUD | ✅ Manually verified | Manual |
-| Checkout (CASH) | ✅ Manually verified | Manual |
+| Checkout (CASH) | Implemented | Verified (manual), concurrency: Not verified |
 | Checkout (QRIS) | ✅ Manually verified | Manual |
 | Checkout warnings | ✅ Manually verified | Manual |
 | Member search | ✅ Manually verified | Manual |
@@ -598,13 +598,9 @@ cloudflared.exe     (53MB) — Cloudflare Tunnel (optional)
 | `ai_stock_threshold` | 10 | Low stock threshold |
 
 ### Default Credentials
-| User | Password | Role | Note |
-|------|----------|------|------|
-| admin | admin123 | Admin | Change on first login |
-| kasir1 | kasir123 | Kasir (Andi) | Change on first login |
-| kasir2 | kasir123 | Kasir (Budi) | Change on first login |
+Credentials are generated on first run. Admin must change password on first login via POST /api/change-password.
 
-**⚠️ Default credentials hanya untuk development/testing. Wajib diubah di production.**
+**⚠️ Do not hardcode credentials in production. Use first-run setup or environment variables.**
 
 ---
 
