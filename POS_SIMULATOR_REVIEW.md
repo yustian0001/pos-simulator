@@ -116,11 +116,6 @@ products → users → shifts → transactions → tx_items → cash_log → mem
 | AI | 4 | Bearer/public |
 | WebSocket | 2 | Origin validated |
 
-### ⚠️ Public Endpoint Warning
-These endpoints are public for local development. **NOT safe for internet exposure** without VPN/Cloudflare Access/IP allowlist: `/api/shifts/active`, `/api/members`, `/api/alerts/low-stock`, `/api/settings` (GET), `/api/receipt/{tx_id}`, `/api/ai/report`, `/api/ai/restock-candidates`, `/ws`.
-
----
-
 ## AI Integration
 
 | Setting | Default |
@@ -138,6 +133,9 @@ These endpoints are public for local development. **NOT safe for internet exposu
 
 ---
 
+### ⚠️ Default Credentials Warning
+Default credentials (admin/admin123, kasir1/kasir123, kasir2/kasir123) are for development/testing only. If this system stores real data (including donation/member data for Masjid Jami Baiturrahman), **change all credentials on first deployment**.
+
 ## Known Limitations
 
 | Limitation | Impact | Mitigation |
@@ -151,6 +149,9 @@ These endpoints are public for local development. **NOT safe for internet exposu
 | handlers.go 1400+ lines | Maintainability | Future refactor |
 
 ---
+
+### ⚠️ Data Status
+Row counts below reflect development/testing data. This system is configured for Masjid Jami Baiturrahman and may store real donation/member data. Items marked "Not verified" should be prioritized before production use.
 
 ## ⚠️ Public Endpoint Warning
 
