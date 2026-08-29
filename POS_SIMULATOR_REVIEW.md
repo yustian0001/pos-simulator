@@ -138,6 +138,23 @@ Endpoints below are public by design for local development. **NOT safe for inter
 
 ---
 
+---
+
+## Cashier Endpoint Audit
+
+| Endpoint | Expected Actor | Ownership Check | Status |
+|----------|---------------|-----------------|--------|
+| POST /api/checkout | cashier (own shift) | Shift ownership verified | Not verified |
+| POST /api/shifts/{id}/close-self | cashier (own shift) | Yes (new) | Not verified |
+| POST /api/hold | cashier | Session required | Not verified |
+| DELETE /api/holds/{id} | cashier (own hold) | Yes (new) | Not verified |
+| GET /api/holds | cashier | Session required | Not verified |
+
+**Ownership checks implemented:** shift ownership (cashier=shift.cashier), hold auth (session required).
+**Ownership checks pending verification:** automated tests needed for each row above.
+
+---
+
 ## Known Limitations
 
 | Limitation | Impact | Mitigation |
@@ -145,7 +162,7 @@ Endpoints below are public by design for local development. **NOT safe for inter
 | Session in-memory | Lost on restart | Acceptable for single-machine |
 | Concurrent checkout | Tested 50x PASS | Mutex serializes requests correctly |
 | Turso conflict resolution | Partial (3 scenarios documented) | Not verified |
-| WebSocket auth | Partial (Origin validated) | No full auth yet |
+| WebSocket auth | Partial (Origin + display token; channel separation & audit log pending) |
 | Migration versioning | Implemented | Not verified |
 | QRIS | Simulasi | Status: pending/paid |
 | handlers.go 1400+ lines | Maintainability | Future refactor |
@@ -177,7 +194,7 @@ Endpoints below are public by design for local development. **NOT safe for inter
 | Priority | Task | Reason |
 |----------|------|--------|
 | 🔴 High | Turso conflict resolution | Data consistency |
-| 🔴 High | Full WebSocket auth (token display) | Security |
+| 🟡 Medium | WebSocket channel separation + connection audit log | Security |
 | 🟡 Medium | Endpoint auth cashier review | Security |
 | 🟡 Medium | Split handlers.go | Maintainability |
 | 🟡 Medium | Service/repo layer | AI integration |

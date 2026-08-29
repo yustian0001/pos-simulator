@@ -441,6 +441,16 @@ func handleCloseShift(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleCloseShiftSelf(w http.ResponseWriter, r *http.Request) {
+	// Session check
+	token, _ := getSessionUser(r)
+	if token == "" {
+		jsonResponse(w, map[string]string{"error": "Login required"}, 401)
+		return
+	}
+	sessionsMu.RLock()
+	cashier := sessions[token].role
+	sessionsMu.RUnlock()
+
 	id := parseID(r.URL.Path)
 	if id == 0 {
 		jsonResponse(w, map[string]string{"error": "Invalid ID"}, 400)
@@ -452,6 +462,14 @@ func handleCloseShiftSelf(w http.ResponseWriter, r *http.Request) {
 		Scan(&shift.ID, &shift.OpeningCash, &shift.ShiftName)
 	if err != nil {
 		jsonResponse(w, map[string]string{"error": "Shift tidak ditemukan atau sudah ditutup"}, 404)
+		return
+	}
+
+	// Ownership check
+	var shiftCashier string
+	db.QueryRow("SELECT cashier FROM shifts WHERE id=?", id).Scan(&shiftCashier)
+	if shiftCashier != cashier {
+		jsonResponse(w, map[string]string{"error": "Shift bukan milik kasir ini"}, 403)
 		return
 	}
 

@@ -232,3 +232,41 @@ func TestConcurrentCheckout(t *testing.T) {
 	db.Exec("DELETE FROM transactions WHERE cashier='tester'")
 	db.Exec("DELETE FROM tx_items WHERE name='Test Product'")
 }
+
+// === Ownership Tests ===
+func TestShiftOwnership(t *testing.T) {
+	// Setup: create shift owned by "kasir1"
+	db.Exec("INSERT INTO shifts (shift_name,cashier,opening_cash,status) VALUES ('Test','kasir1',50000,'open')")
+	var shiftID int
+	db.QueryRow("SELECT id FROM shifts WHERE shift_name='Test' AND cashier='kasir1'").Scan(&shiftID)
+
+	// Create session for "kasir2" (wrong cashier)
+	token2 := createSession("kasir2")
+
+	// Try to close-shift-self as kasir2 on kasir1's shift
+	req, _ := http.NewRequest("POST", fmt.Sprintf("/api/shifts/%d/close-self", shiftID), strings.NewReader(`{"closing_cash":50000}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", token2)
+	w := &httptest.ResponseRecorder{}
+	handleCloseShiftSelf(w, req)
+
+	if w.Code != 403 {
+		t.Errorf("Expected 403 for wrong cashier, got %d", w.Code)
+	}
+
+	// Cleanup
+	db.Exec("DELETE FROM shifts WHERE shift_name='Test'")
+}
+
+func TestHoldAuth(t *testing.T) {
+	// Try to create hold without session
+	req, _ := http.NewRequest("POST", "/api/hold", strings.NewReader(`{"items":"[]","customer_name":"test"}`))
+	req.Header.Set("Content-Type", "application/json")
+	w := &httptest.ResponseRecorder{}
+	handleHold(w, req)
+
+	// Should work (hold is public for kasir quick access)
+	if w.Code != 200 {
+		t.Errorf("Hold should be accessible, got %d", w.Code)
+	}
+}
