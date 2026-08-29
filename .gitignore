@@ -1,7 +1,2 @@
-pos.db
-pos.db-shm
-pos.db-wal
-*.exe
-/test/
-/tmp/
-pos-server
+# POS Simulator v2.2
+# All files included for team clone
