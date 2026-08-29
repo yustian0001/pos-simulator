@@ -66,6 +66,12 @@ func logError(context string, err error) {
 }
 
 // === Auth ===
+
+func auditLog(action, entity, entityID, user, details string) {
+	db.Exec("INSERT INTO audit_log (action,entity,entity_id,user,details) VALUES (?,?,?,?,?)",
+		action, entity, entityID, user, details)
+}
+
 func handleLogin(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Username string `json:"username"`
@@ -615,6 +621,7 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 		jsonResponse(w, map[string]string{"error": "Gagal simpan transaksi"}, 500)
 		return
 	}
+	auditLog("checkout", "transaction", txID, req.Cashier, fmt.Sprintf("Total: %d, Payment: %s", grandTotal, req.Payment))
 
 	txData := map[string]interface{}{
 		"id": txID, "total": total, "discount": discount, "tax": tax,
