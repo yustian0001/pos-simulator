@@ -166,7 +166,7 @@ Endpoints below are public by design for local development. **NOT safe for inter
 | 13 tables + PRAGMA FK + schema_migrations | Partial (table exists, no version tracking) | Not verified |
 | Tidak ada secret di source/binary/repo | Partial (default removed, config.json embedded) | Not verified |
 | Endpoint sensitif ada auth | Partial (admin done, cashier needs review) | Not verified |
-| Checkout atomic + rollback | Implemented | Manual verified; concurrent: Not verified |
+| Checkout atomic + rollback | Implemented | Manual verified; concurrent: Tested 50x PASS |
 | Semua stok punya inventory movement | Implemented (checkout + void) | Manual verified |
 | Void idempotent + reversal | Implemented | Manual verified |
 | AI idempotent | Implemented (atomic tx) | Manual verified |
@@ -209,4 +209,4 @@ Endpoints below are public by design for local development. **NOT safe for inter
 
 ---
 
-*Pre-production review. 10 automated tests passing (including 1 concurrent checkout test). WebSocket Origin validation added. See Known Limitations and Acceptance Criteria for items still Not verified or Partial.*
+*Pre-production review. 10 automated tests passing, including concurrent checkout tested 50x with consistent PASS results. WebSocket Origin validation added. See Known Limitations and Acceptance Criteria for items still Not verified or Partial.*
