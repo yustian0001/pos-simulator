@@ -223,7 +223,7 @@ func main() {
 		freshURL := url + "?v=" + cacheBust
 		fmt.Printf("[POS] Opening browser: %s\n", freshURL)
 		if runtime.GOOS == "windows" {
-			exec.Command("cmd", "/c", "start", "chrome", "--kiosk-printing", freshURL).Start()
+			exec.Command("cmd", "/c", "start", "chrome", "--kiosk-printing", "--disable-features=TranslateUI", "--no-first-run", freshURL).Start()
 		} else if runtime.GOOS == "darwin" {
 			exec.Command("open", freshURL).Start()
 		} else {

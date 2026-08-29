@@ -107,7 +107,7 @@ async function loadReceipt(){
     // Load PPN rate
     try{var sr=await fetch("/api/settings");var s=await sr.json();if(s.ppn_rate)document.getElementById("ppn-label").textContent="PPN "+s.ppn_rate+"%";}catch(e){}
     // Auto-print jika ?autoprint=1
-    if(autoPrint)setTimeout(function(){doPrint()},300);
+    if(autoPrint)setTimeout(function(){doPrint()},1000);
   }catch(e){document.getElementById('receipt-items').innerHTML='<p style="text-align:center;padding:20px">Error loading receipt</p>'}
 }
 
