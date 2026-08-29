@@ -35,7 +35,7 @@ go vet ./...
 go test ./...
 go test -race ./...
 ```
-**Status:** Implemented, not yet unit tested (manual verification only).
+**Status:** `go test ./...` PASS (9 tests, 4.003s). Commit: latest.
 
 ---
 
@@ -535,7 +535,7 @@ Semua perubahan stok tercatat di `inventory_movements`:
 | AI daily limit | ✅ Implemented | Manual |
 | Foreign keys | ✅ Manually verified | Manual |
 | Audit trail | ✅ Manually verified | Manual |
-| Inventory movements | ✅ Implemented | Manual |
+| Inventory movements (checkout) | ✅ Implemented | Automated |
 | Mask secret | ✅ Manually verified | Manual |
 
 **Test Command:**
@@ -647,17 +647,17 @@ cloudflared.exe     (53MB) — Cloudflare Tunnel (optional)
 
 | Criteria | Status |
 |----------|--------|
-| 13 tables dengan migration valid | ✅ Implemented |
+| 13 tables + PRAGMA FK + schema_migrations | ✅ Implemented |
 | Tidak ada secret di source/binary/repo | ⚠️ Partial (default removed, config.json still embedded) |
 | Endpoint sensitif ada auth | ⚠️ Partial (admin endpoints done, cashier endpoints need review) |
-| Checkout atomic + rollback | ✅ Implemented |
-| Semua stok punya inventory movement | ⚠️ Partial (checkout done, void pending) |
-| Void idempotent + reversal | ⚠️ Partial (CSRF done, inventory/points reversal pending) |
+| Checkout atomic + rollback | ✅ Implemented, manually verified |
+| Semua stok punya inventory movement | ✅ Implemented (checkout + void) |
+| Void idempotent + reversal | ✅ Implemented |
 | AI idempotent | ✅ Implemented (atomic tx) |
 | AI tidak ubah settings tanpa admin | ✅ Implemented (masked secret) |
 | Turso/local mode documented | ⚠️ Partial (basic documented) |
 | WebSocket aman | ⚠️ Partial (broadcast protected, no auth) |
-| Automated tests | ❌ Not implemented |
+| Automated tests | ✅ `go test ./...` PASS (9 tests) |
 | Dokumen hanya klaim verified | ✅ Updated |
 
 ---
