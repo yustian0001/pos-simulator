@@ -253,9 +253,10 @@ cash_log.shift_id → shifts.id
 ### AI Integration (NEW)
 | Endpoint | Method | Auth | Description |
 |----------|--------|------|-------------|
-| `/api/ai/webhook` | POST | ✅ Bearer token | AI agent commands |
-| `/api/ai/report` | GET | ❌ | Daily report for AI analysis |
-| `/api/ai/settings` | GET/PUT | ❌/✅ admin | AI configuration |
+| `/api/ai/webhook` | POST | ✅ Bearer token | AI agent commands (stock_update) |
+| `/api/ai/report` | GET | ❌ | Daily report v1.0 for AI analysis |
+| `/api/ai/restock-candidates` | GET | ❌ | Low stock products with margin |
+| `/api/ai/settings` | GET/PUT | ❌/✅ admin | AI config (mode, limits, threshold) |
 
 ### WebSocket
 | Endpoint | Method | Auth | Description |
@@ -353,14 +354,21 @@ AI Agent
     → Send recommendations
 ```
 
+### AI Modes
+| Mode | Behavior |
+|------|----------|
+| `suggest_only` | AI hanya log rekomendasi, tidak update stok |
+| `auto_update` | AI boleh update stok (patuhi max_daily_updates) |
+
 ### Webhook Commands
 ```json
-// Update stock
+// Update stock (hanya jika ai_mode=auto_update)
 POST /api/ai/webhook
 Authorization: Bearer <ai_webhook_secret>
 {
+  "version": "1.0",
   "action": "stock_update",
-  "request_id": "unique-id-123",
+  "request_id": "ai-2026-08-29-001",
   "data": {
     "product_id": 1,
     "new_stock": 50,
@@ -368,10 +376,30 @@ Authorization: Bearer <ai_webhook_secret>
   }
 }
 
-// Get restock candidates
-POST /api/ai/webhook
+// Response
 {
-  "action": "restock_recommendation"
+  "status": "ok",
+  "applied": true,
+  "message": "Stock updated"
+}
+```
+
+### Read-only Queries
+```json
+// Restock candidates (threshold from ai_stock_threshold)
+GET /api/ai/restock-candidates?threshold=10
+
+// Response
+{
+  "version": "1.0",
+  "threshold": 10,
+  "candidates": [
+    {
+      "product_id": 3, "sku": "PRD003", "name": "Es Teh",
+      "stock": 5, "price": 5000, "cost": 2000, "margin_pct": 150
+    }
+  ],
+  "count": 1
 }
 ```
 
@@ -401,6 +429,8 @@ GET /api/ai/report?date=2026-08-29
 GET/PUT /api/ai/settings
 {
   "ai_enable_auto_stock_update": "true",
+  "ai_mode": "suggest_only",          // or "auto_update"
+  "ai_max_daily_updates": "50",        // limit per hari
   "ai_webhook_url": "https://agent.example.com/webhook",
   "ai_webhook_secret": "your-secret-here",
   "ai_stock_threshold": "10"
