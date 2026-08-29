@@ -389,6 +389,7 @@ async function checkout(){
     lastTxReceipt=tx;
     document.getElementById("modal-tx-id").textContent=tx.id;
     document.getElementById("modal-total").textContent="Rp "+tx.grand_total.toLocaleString("id-ID");
+    if(tx.warnings&&tx.warnings.length>0){alert("Perhatian:\n"+tx.warnings.join("\n"))}
     if(tx.change>0){document.getElementById("modal-change-row").style.display="block";document.getElementById("modal-change").textContent="Rp "+tx.change.toLocaleString("id-ID")}
     else{document.getElementById("modal-change-row").style.display="none"}
     document.getElementById("modal-receipt").innerHTML="<b>Items:</b> "+tx.items.map(function(i){return i.name+" x"+i.qty}).join(", ");

@@ -525,6 +525,7 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 		Notes    string  `json:"notes"`
 	}
 	var items []checkoutItem
+	var failedItems []string
 
 	// Use transaction for stock deduction
 	sqlTx, err := db.Begin()
@@ -542,7 +543,12 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 		var p Product
 		err := sqlTx.QueryRow("SELECT id,name,price,promo_price,promo_active,stock,tax_rate FROM products WHERE id=? AND active=1", ci.ProductID).
 			Scan(&p.ID, &p.Name, &p.Price, &p.PromoPrice, &p.PromoActive, &p.Stock, &p.TaxRate)
-		if err != nil || p.Stock < ci.Qty {
+		if err != nil {
+			failedItems = append(failedItems, fmt.Sprintf("Produk ID %d tidak ditemukan", ci.ProductID))
+			continue
+		}
+		if p.Stock < ci.Qty {
+			failedItems = append(failedItems, fmt.Sprintf("%s (stok: %d, diminta: %d)", p.Name, p.Stock, ci.Qty))
 			continue
 		}
 		effectivePrice := p.Price
@@ -1148,6 +1154,168 @@ func handleUpdateSettings(w http.ResponseWriter, r *http.Request) {
 	}
 	for k, v := range settings {
 		db.Exec("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", k, v)
+	}
+	jsonResponse(w, map[string]string{"status": "ok"}, 200)
+}
+
+// === AI INTEGRATION ===
+
+// Webhook receiver — AI agent bisa trigger action
+func handleAIWebhook(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		jsonResponse(w, map[string]string{"error": "POST only"}, 405)
+		return
+	}
+	var req struct {
+		Action string      `json:"action"`
+		Data   interface{} `json:"data"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		jsonResponse(w, map[string]string{"error": "Invalid request"}, 400)
+		return
+	}
+
+	switch req.Action {
+	case "stock_update":
+		// AI agent update stok produk
+		data, _ := json.Marshal(req.Data)
+		var update struct {
+			ProductID int `json:"product_id"`
+			NewStock  int `json:"new_stock"`
+			Reason    string `json:"reason"`
+		}
+		json.Unmarshal(data, &update)
+		if update.ProductID == 0 || update.NewStock < 0 {
+			jsonResponse(w, map[string]string{"error": "product_id and new_stock required"}, 400)
+			return
+		}
+		db.Exec("UPDATE products SET stock=? WHERE id=?", update.NewStock, update.ProductID)
+		db.Exec("INSERT INTO cash_log (shift_id,type,amount,description) VALUES (0,'stock_adjust',0,?)",
+			fmt.Sprintf("AI stock update: product_id=%d, stock=%d, reason=%s", update.ProductID, update.NewStock, update.Reason))
+		jsonResponse(w, map[string]string{"status": "ok"}, 200)
+
+	case "restock_recommendation":
+		// AI agent baca stok rendah
+		rows, _ := db.Query("SELECT id,sku,name,stock,category FROM products WHERE active=1 AND stock<10 ORDER BY stock")
+		defer rows.Close()
+		var recommendations []map[string]interface{}
+		for rows.Next() {
+			var id, stock int
+			var sku, name, category string
+			rows.Scan(&id, &sku, &name, &stock, &category)
+			recommendations = append(recommendations, map[string]interface{}{
+				"product_id": id, "sku": sku, "name": name, "stock": stock, "category": category,
+			})
+		}
+		jsonResponse(w, recommendations, 200)
+
+	default:
+		jsonResponse(w, map[string]string{"error": "Unknown action"}, 400)
+	}
+}
+
+// Daily report — AI agent bisa baca untuk analisis
+func handleAIReport(w http.ResponseWriter, r *http.Request) {
+	date := r.URL.Query().Get("date")
+	if date == "" {
+		date = time.Now().Format("2006-01-02")
+	}
+
+	// Total sales
+	var totalSales, totalTx, totalTax int
+	db.QueryRow("SELECT COALESCE(SUM(grand_total),0), COUNT(*), COALESCE(SUM(tax),0) FROM transactions WHERE status='completed' AND DATE(created_at)=?", date).Scan(&totalSales, &totalTx, &totalTax)
+
+	// Sales per product
+	rows, _ := db.Query(`
+		SELECT ti.name, SUM(ti.qty) as total_qty, SUM(ti.subtotal) as total_revenue
+		FROM tx_items ti
+		JOIN transactions t ON ti.tx_id = t.tx_id
+		WHERE t.status='completed' AND DATE(t.created_at)=?
+		GROUP BY ti.name ORDER BY total_revenue DESC
+	`, date)
+	defer rows.Close()
+	type ProductSales struct {
+		Name    string `json:"name"`
+		Qty     int    `json:"qty"`
+		Revenue int    `json:"revenue"`
+	}
+	var productSales []ProductSales
+	for rows.Next() {
+		var ps ProductSales
+		rows.Scan(&ps.Name, &ps.Qty, &ps.Revenue)
+		productSales = append(productSales, ps)
+	}
+
+	// Low stock items
+	lowStockRows, _ := db.Query("SELECT id,sku,name,stock,category FROM products WHERE active=1 AND stock<10 ORDER BY stock")
+	defer lowStockRows.Close()
+	var lowStock []map[string]interface{}
+	for lowStockRows.Next() {
+		var id, stock int
+		var sku, name, category string
+		lowStockRows.Scan(&id, &sku, &name, &stock, &category)
+		lowStock = append(lowStock, map[string]interface{}{
+			"product_id": id, "sku": sku, "name": name, "stock": stock, "category": category,
+		})
+	}
+
+	// Member activity
+	memberRows, _ := db.Query(`
+		SELECT m.name, m.member_id, COUNT(t.id) as tx_count, SUM(t.grand_total) as total_spent
+		FROM transactions t
+		JOIN members m ON t.member_id = m.id
+		WHERE t.status='completed' AND DATE(t.created_at)=?
+		GROUP BY m.id ORDER BY total_spent DESC LIMIT 10
+	`, date)
+	defer memberRows.Close()
+	type MemberActivity struct {
+		Name       string `json:"name"`
+		MemberID   string `json:"member_id"`
+		TxCount    int    `json:"tx_count"`
+		TotalSpent int    `json:"total_spent"`
+	}
+	var memberActivity []MemberActivity
+	for memberRows.Next() {
+		var ma MemberActivity
+		memberRows.Scan(&ma.Name, &ma.MemberID, &ma.TxCount, &ma.TotalSpent)
+		memberActivity = append(memberActivity, ma)
+	}
+
+	jsonResponse(w, map[string]interface{}{
+		"date":            date,
+		"total_sales":     totalSales,
+		"total_tx":        totalTx,
+		"total_tax":       totalTax,
+		"product_sales":   productSales,
+		"low_stock":       lowStock,
+		"member_activity": memberActivity,
+	}, 200)
+}
+
+// Settings for AI integration
+func handleGetAISettings(w http.ResponseWriter, r *http.Request) {
+	var settings map[string]string
+	settings = make(map[string]string)
+	rows, _ := db.Query("SELECT key, value FROM settings WHERE key LIKE 'ai_%'")
+	defer rows.Close()
+	for rows.Next() {
+		var k, v string
+		rows.Scan(&k, &v)
+		settings[k] = v
+	}
+	jsonResponse(w, settings, 200)
+}
+
+func handleUpdateAISettings(w http.ResponseWriter, r *http.Request) {
+	var req map[string]string
+	if err := decodeJSON(r, &req); err != nil {
+		jsonResponse(w, map[string]string{"error": "Invalid"}, 400)
+		return
+	}
+	for k, v := range req {
+		if len(k) > 3 && k[:3] == "ai_" {
+			db.Exec("INSERT OR REPLACE INTO settings (key,value) VALUES (?,?)", k, v)
+		}
 	}
 	jsonResponse(w, map[string]string{"status": "ok"}, 200)
 }

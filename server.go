@@ -155,6 +155,15 @@ func main() {
 	mux.HandleFunc("/api/alerts/low-stock", handleLowStock)
 	mux.HandleFunc("/api/backup", adminOnly(handleBackup))
 	mux.HandleFunc("/api/restore", adminOnly(handleRestore))
+	mux.HandleFunc("/api/ai/webhook", handleAIWebhook)
+	mux.HandleFunc("/api/ai/report", handleAIReport)
+	mux.HandleFunc("/api/ai/settings", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "GET" {
+			handleGetAISettings(w, r)
+		} else if r.Method == "PUT" {
+			adminOnly(handleUpdateAISettings)(w, r)
+		}
+	})
 	mux.HandleFunc("/api/settings", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "GET" {
 			handleGetSettings(w, r)
