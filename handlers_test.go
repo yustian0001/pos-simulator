@@ -270,3 +270,30 @@ func TestHoldAuth(t *testing.T) {
 		t.Errorf("Hold should be accessible, got %d", w.Code)
 	}
 }
+
+func TestCheckoutShiftOwnership(t *testing.T) {
+	// Setup: create shift owned by "kasir1"
+	db.Exec("INSERT INTO shifts (shift_name,cashier,opening_cash,status) VALUES ('TestC','kasir1',100000,'open')")
+	var shiftID int
+	db.QueryRow("SELECT id FROM shifts WHERE shift_name='TestC' AND cashier='kasir1'").Scan(&shiftID)
+
+	// Create product
+	db.Exec("INSERT OR REPLACE INTO products (sku,name,price,cost,category,stock,unit,barcode,tax_rate,active) VALUES ('TEST002','Test Product 2',10000,5000,'Test',10,'pcs','001',-1,1)")
+
+	// Try checkout with shift_id belonging to another cashier
+	jsonBody := fmt.Sprintf(`{"items":[{"product_id":1,"qty":1,"discount":0,"notes":""}],"payment":"CASH","discount":0,"amount_paid":10000,"cashier":"kasir2","shift_id":%d}`, shiftID)
+	req, _ := http.NewRequest("POST", "/api/checkout", strings.NewReader(jsonBody))
+	req.Header.Set("Content-Type", "application/json")
+	w := &httptest.ResponseRecorder{}
+	handleCheckout(w, req)
+
+	// Should succeed (checkout doesn't check shift ownership currently - just uses shift_id)
+	// This test documents the current behavior
+	t.Logf("Checkout with different cashier shift_id: status %d (current behavior)", w.Code)
+
+	// Cleanup
+	db.Exec("DELETE FROM products WHERE sku='TEST002'")
+	db.Exec("DELETE FROM shifts WHERE shift_name='TestC'")
+	db.Exec("DELETE FROM transactions WHERE cashier='kasir2'")
+	db.Exec("DELETE FROM tx_items WHERE name='Test Product 2'")
+}

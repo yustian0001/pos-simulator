@@ -138,8 +138,6 @@ Endpoints below are public by design for local development. **NOT safe for inter
 
 ---
 
----
-
 ## Cashier Endpoint Audit
 
 | Endpoint | Expected Actor | Ownership Check | Status |
@@ -162,7 +160,7 @@ Endpoints below are public by design for local development. **NOT safe for inter
 | Session in-memory | Lost on restart | Acceptable for single-machine |
 | Concurrent checkout | Tested 50x PASS | Mutex serializes requests correctly |
 | Turso conflict resolution | Partial (3 scenarios documented) | Not verified |
-| WebSocket auth | Partial (Origin + display token; channel separation & audit log pending) |
+| WebSocket auth | Partial (Origin + display token; channel separation & audit log pending) | Sufficient for single-channel; multi-role separation planned |
 | Migration versioning | Implemented | Not verified |
 | QRIS | Simulasi | Status: pending/paid |
 | handlers.go 1400+ lines | Maintainability | Future refactor |
