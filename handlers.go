@@ -636,7 +636,7 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 	// Per-product tax calculation
 	var globalTaxRate float64 = 11
 	var ppnStr string
-	db.QueryRow("SELECT value FROM settings WHERE key='ppn_rate'").Scan(&ppnStr)
+	sqlTx.QueryRow("SELECT value FROM settings WHERE key='ppn_rate'").Scan(&ppnStr)
 	if ppnStr != "" {
 		if v, err := strconv.ParseFloat(ppnStr, 64); err == nil {
 			globalTaxRate = v
@@ -1301,55 +1301,93 @@ func handleAIWebhook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	switch req.Action {
-	case "stock_update":
+	case "stock_adjustment":
 		data, _ := json.Marshal(req.Data)
-		var update struct {
-			ProductID int    `json:"product_id"`
-			NewStock  int    `json:"new_stock"`
-			Reason    string `json:"reason"`
+		var adj struct {
+			ProductID    int    `json:"product_id"`
+			Operation    string `json:"operation"`     // set, increase, decrease
+			Quantity     int    `json:"quantity"`
+			ExpectedStock int   `json:"expected_stock"`
+			Source       string `json:"source"`        // ai, manual, supplier_receipt, stock_count
+			Reason       string `json:"reason"`
 		}
-		json.Unmarshal(data, &update)
-		if update.ProductID == 0 || update.NewStock < 0 {
-			jsonResponse(w, map[string]string{"error": "product_id and new_stock required"}, 400)
+		json.Unmarshal(data, &adj)
+		if adj.ProductID == 0 || adj.Operation == "" || adj.Quantity < 0 {
+			jsonResponse(w, map[string]string{"error": "product_id, operation, and quantity required"}, 400)
 			return
 		}
-		// Check ai_mode setting
+		if adj.Operation != "set" && adj.Operation != "increase" && adj.Operation != "decrease" {
+			jsonResponse(w, map[string]string{"error": "operation must be: set, increase, decrease"}, 400)
+			return
+		}
+		// Check ai_mode
 		var aiMode string
 		db.QueryRow("SELECT value FROM settings WHERE key='ai_mode'").Scan(&aiMode)
 		if aiMode == "suggest_only" {
-			auditLog("ai_suggestion", "product", fmt.Sprintf("%d", update.ProductID), "AI_AGENT", fmt.Sprintf("Suggested stock=%d reason=%s (suggest_only mode)", update.NewStock, update.Reason))
+			auditLog("ai_suggestion", "product", fmt.Sprintf("%d", adj.ProductID), "AI_AGENT",
+				fmt.Sprintf("Suggested %s %d (suggest_only mode)", adj.Operation, adj.Quantity))
 			jsonResponse(w, map[string]interface{}{"status": "ok", "applied": false, "message": "Suggestion logged (suggest_only mode)"}, 200)
 			return
 		}
-		// Check max daily updates
+		// Check max daily
 		var maxDaily int
 		maxDailyStr := ""
 		db.QueryRow("SELECT value FROM settings WHERE key='ai_max_daily_updates'").Scan(&maxDailyStr)
-		if maxDailyStr != "" {
-			maxDaily, _ = strconv.Atoi(maxDailyStr)
-		}
+		if maxDailyStr != "" { maxDaily, _ = strconv.Atoi(maxDailyStr) }
 		if maxDaily > 0 {
 			var todayCount int
-			db.QueryRow("SELECT COUNT(*) FROM audit_log WHERE action='ai_stock_update' AND DATE(created_at)=DATE('now')").Scan(&todayCount)
+			db.QueryRow("SELECT COUNT(*) FROM audit_log WHERE action='ai_stock_adjustment' AND DATE(created_at)=DATE('now')").Scan(&todayCount)
 			if todayCount >= maxDaily {
 				jsonResponse(w, map[string]interface{}{"status": "error", "applied": false, "message": fmt.Sprintf("Daily limit reached (%d/%d)", todayCount, maxDaily)}, 429)
 				return
 			}
 		}
-		// Idempotency
+		// Idempotency table
 		if req.RequestID != "" {
 			var exists int
-			db.QueryRow("SELECT COUNT(*) FROM audit_log WHERE details LIKE ?", "%request_id:"+req.RequestID+"%").Scan(&exists)
+			db.QueryRow("SELECT COUNT(*) FROM idempotency_keys WHERE key=?", req.RequestID).Scan(&exists)
 			if exists > 0 {
-				jsonResponse(w, map[string]interface{}{"status": "ok", "applied": false, "message": "Already processed"}, 200)
+				jsonResponse(w, map[string]interface{}{"status": "ok", "applied": false, "message": "Already processed (idempotent)"}, 200)
 				return
 			}
 		}
-		db.Exec("UPDATE products SET stock=? WHERE id=?", update.NewStock, update.ProductID)
-		auditLog("ai_stock_update", "product", fmt.Sprintf("%d", update.ProductID), "AI_AGENT", fmt.Sprintf("stock=%d reason=%s request_id=%s", update.NewStock, update.Reason, req.RequestID))
-		db.Exec("INSERT INTO cash_log (shift_id,type,amount,description) VALUES (0,'stock_adjust',0,?)",
-			fmt.Sprintf("AI stock update: product_id=%d, stock=%d, reason=%s", update.ProductID, update.NewStock, update.Reason))
-		jsonResponse(w, map[string]interface{}{"status": "ok", "applied": true, "message": "Stock updated"}, 200)
+		// Optimistic concurrency
+		var currentStock int
+		err := db.QueryRow("SELECT stock FROM products WHERE id=?", adj.ProductID).Scan(&currentStock)
+		if err != nil {
+			jsonResponse(w, map[string]string{"error": "Product not found"}, 404)
+			return
+		}
+		if adj.ExpectedStock > 0 && currentStock != adj.ExpectedStock {
+			jsonResponse(w, map[string]interface{}{"status": "error", "applied": false,
+				"message": fmt.Sprintf("Stock mismatch: expected %d, actual %d", adj.ExpectedStock, currentStock)}, 409)
+			return
+		}
+		var newStock int
+		switch adj.Operation {
+		case "set":
+			newStock = adj.Quantity
+		case "increase":
+			newStock = currentStock + adj.Quantity
+		case "decrease":
+			newStock = currentStock - adj.Quantity
+			if newStock < 0 { newStock = 0 }
+		}
+		db.Exec("UPDATE products SET stock=? WHERE id=?", newStock, adj.ProductID)
+		// Inventory movement
+		db.Exec("INSERT INTO inventory_movements (product_id,movement_type,quantity,stock_before,stock_after,reference_type,source,reason,user) VALUES (?,?,?,?,?,?,?,?,?)",
+			adj.ProductID, adj.Operation, adj.Quantity, currentStock, newStock, "ai_adjustment", adj.Source, adj.Reason, "AI_AGENT")
+		// Audit
+		auditLog("ai_stock_adjustment", "product", fmt.Sprintf("%d", adj.ProductID), "AI_AGENT",
+			fmt.Sprintf("%s %d (before=%d after=%d) source=%s reason=%s request_id=%s",
+				adj.Operation, adj.Quantity, currentStock, newStock, adj.Source, adj.Reason, req.RequestID))
+		// Save idempotency key
+		if req.RequestID != "" {
+			resp, _ := json.Marshal(map[string]interface{}{"status": "ok", "applied": true})
+			db.Exec("INSERT INTO idempotency_keys (key,action,response_json,expires_at) VALUES (?,?,?,datetime('now'))",
+				req.RequestID, "stock_adjustment", string(resp))
+		}
+		jsonResponse(w, map[string]interface{}{"status": "ok", "applied": true, "message": "Stock adjusted"}, 200)
 
 	case "restock_recommendation":
 		// AI agent baca stok rendah

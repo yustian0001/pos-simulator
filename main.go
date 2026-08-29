@@ -323,6 +323,32 @@ func initDB() {
 	);`
 	db.Exec(tables)
 
+	// Create inventory_movements table
+	db.Exec(`CREATE TABLE IF NOT EXISTS inventory_movements (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		product_id INTEGER NOT NULL,
+		movement_type TEXT NOT NULL,
+		quantity INTEGER NOT NULL,
+		stock_before INTEGER NOT NULL,
+		stock_after INTEGER NOT NULL,
+		reference_type TEXT DEFAULT '',
+		reference_id TEXT DEFAULT '',
+		source TEXT NOT NULL DEFAULT 'manual',
+		reason TEXT DEFAULT '',
+		user TEXT DEFAULT '',
+		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (product_id) REFERENCES products(id)
+	)`)
+
+	// Create idempotency_keys table
+	db.Exec(`CREATE TABLE IF NOT EXISTS idempotency_keys (
+		key TEXT PRIMARY KEY,
+		action TEXT NOT NULL,
+		response_json TEXT NOT NULL,
+		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		expires_at TIMESTAMP NOT NULL
+	)`)
+
 	// Migration: add columns that may not exist in older DBs
 	db.Exec("ALTER TABLE products ADD COLUMN tax_rate REAL DEFAULT -1")
 
