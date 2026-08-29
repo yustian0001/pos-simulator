@@ -156,7 +156,7 @@ CREATE TABLE settings (
     key TEXT PRIMARY KEY, value TEXT NOT NULL
 );
 
--- Audit trail (NEW)
+-- Audit trail
 CREATE TABLE audit_log (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     action TEXT NOT NULL, entity TEXT NOT NULL,
@@ -165,6 +165,32 @@ CREATE TABLE audit_log (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 ```
+
+-- Inventory movements ledger (NEW)
+CREATE TABLE inventory_movements (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    product_id INTEGER NOT NULL,
+    movement_type TEXT NOT NULL,
+    quantity INTEGER NOT NULL,
+    stock_before INTEGER NOT NULL,
+    stock_after INTEGER NOT NULL,
+    reference_type TEXT DEFAULT '',
+    reference_id TEXT DEFAULT '',
+    source TEXT NOT NULL DEFAULT 'manual',
+    reason TEXT DEFAULT '',
+    user TEXT DEFAULT '',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (product_id) REFERENCES products(id)
+);
+
+-- Idempotency keys (NEW)
+CREATE TABLE idempotency_keys (
+    key TEXT PRIMARY KEY,
+    action TEXT NOT NULL,
+    response_json TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    expires_at TIMESTAMP NOT NULL
+);
 
 ### Foreign Key Diagram
 ```
@@ -329,7 +355,7 @@ audit_log (action: ai_stock_update, user: AI_AGENT)
 
 ### API Contracts
 
-**POST /api/ai/webhook (stock_update)**
+**POST /api/ai/webhook (stock_adjustment)**
 ```json
 // Request
 {
@@ -587,7 +613,7 @@ cloudflared.exe     (53MB) — Cloudflare Tunnel (optional)
 | HTML files | 6 |
 | HTML lines | ~1,500 |
 | API endpoints | 40+ |
-| DB tables | 11 |
+| DB tables | 13 |
 | Foreign keys | 4 |
 | Audit events | 5 (login, checkout, void, restore, AI) |
 | AI endpoints | 4 (webhook, report, restock, settings) |
