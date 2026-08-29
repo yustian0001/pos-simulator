@@ -804,9 +804,58 @@ func handleVoidTransaction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if status == "voided" {
-		jsonResponse(w, map[string]string{"error": "Transaksi sudah di-void"}, 400)
+		jsonResponse(w, map[string]interface{}{"status": "ok", "message": "Already voided (idempotent)"}, 200)
 		return
 	}
+
+	// Get transaction details for reversal
+	var txGrandTotal, txMemberID int
+	var txPayment string
+	db.QueryRow("SELECT grand_total, member_id, payment FROM transactions WHERE tx_id=?", txID).Scan(&txGrandTotal, &txMemberID, &txPayment)
+
+	// Begin transaction for reversal
+	voidTx, _ := db.Begin()
+	defer voidTx.Rollback()
+
+	// 1. Update status
+	voidTx.Exec("UPDATE transactions SET status='voided', notes='voided by admin' WHERE tx_id=? AND status='completed'", txID)
+
+	// 2. Reverse stock via inventory movements
+	voidRows, _ := voidTx.Query("SELECT product_id, qty FROM tx_items WHERE tx_id=?", txID)
+	var voidedItems []struct{ ProductID, Qty int }
+	for voidRows.Next() {
+		var item struct{ ProductID, Qty int }
+		voidRows.Scan(&item.ProductID, &item.Qty)
+		voidedItems = append(voidedItems, item)
+		var currentStock int
+		voidTx.QueryRow("SELECT stock FROM products WHERE id=?", item.ProductID).Scan(&currentStock)
+		voidTx.Exec("UPDATE products SET stock=stock+? WHERE id=?", item.Qty, item.ProductID)
+		voidTx.Exec("INSERT INTO inventory_movements (product_id,movement_type,quantity,stock_before,stock_after,reference_type,reference_id,source,reason,user) VALUES (?,?,?,?,?,?,?,?,?,?)",
+			item.ProductID, "sale_reversal", item.Qty, currentStock, currentStock+item.Qty, "transaction", txID, "void", "Void reversal", "admin")
+	}
+	voidRows.Close()
+
+	// 3. Reverse member points
+	if txMemberID > 0 {
+		voidTx.Exec("UPDATE members SET points=points-? WHERE id=? AND points>=?", txGrandTotal/1000, txMemberID, txGrandTotal/1000)
+	}
+
+	// 4. Reverse cash/shift totals
+	var txShiftID int
+	db.QueryRow("SELECT shift_id FROM transactions WHERE tx_id=?", txID).Scan(&txShiftID)
+	if txShiftID > 0 {
+		voidTx.Exec("UPDATE shifts SET total_sales=total_sales-?, total_tx=total_tx-1 WHERE id=?", txGrandTotal, txShiftID)
+		if txPayment == "CASH" {
+			voidTx.Exec("UPDATE shifts SET cash_sales=cash_sales-? WHERE id=?", txGrandTotal, txShiftID)
+		}
+	}
+
+	// 5. Audit
+	voidTx.Exec("INSERT INTO audit_log (action,entity,entity_id,user,details) VALUES (?,?,?,?,?)",
+		"void", "transaction", txID, "admin", fmt.Sprintf("Voided. Reversed stock for %d items, points %d, amount %d", len(voidedItems), txGrandTotal/1000, txGrandTotal))
+
+	voidTx.Commit()
+	jsonResponse(w, map[string]interface{}{"status": "ok", "message": "Transaction voided with full reversal"}, 200)
 
 	// Restore stock
 	itemRows, _ := db.Query("SELECT product_id,qty FROM tx_items WHERE tx_id=?", txID)
