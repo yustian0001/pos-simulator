@@ -22,7 +22,13 @@ var frontendFS embed.FS
 var configFile []byte
 
 var upgrader = websocket.Upgrader{
-	CheckOrigin: func(r *http.Request) bool { return true },
+	CheckOrigin: func(r *http.Request) bool {
+		origin := r.Header.Get("Origin")
+		if origin == "" || strings.Contains(origin, "localhost") || strings.Contains(origin, "127.0.0.1") {
+			return true
+		}
+		return false
+	},
 }
 
 func handleWebSocket(w http.ResponseWriter, r *http.Request) {
