@@ -306,7 +306,7 @@ async function loadProducts(search){
     var price=p.promo_active&&p.promo_price>0?p.promo_price:p.price;
     var stockClass=p.stock<10?"low":"";
     var promoHtml=p.promo_active&&p.promo_price>0?'<div class="product-promo">Promo!</div>':'';
-    return '<div class="product-card" onclick="addToCart('+p.id+',"'+p.name.replace(/"/g,'\\"')+'",'+price+','+p.stock+')"><div class="product-emoji">'+(cats[p.category]||"📦")+'</div><div class="product-name">'+p.name+'</div><div class="product-price">Rp '+price.toLocaleString("id-ID")+'</div><div class="product-stock '+stockClass+'">Stok: '+p.stock+'</div>'+promoHtml+'</div>';
+    return '<div class="product-card" data-id="'+p.id+'" data-name="'+p.name.replace(/"/g,'&quot;')+'" data-price="'+price+'" data-stock="'+p.stock+'" onclick="addFromCard(this)"><div class="product-emoji">'+(cats[p.category]||"📦")+'</div><div class="product-name">'+p.name+'</div><div class="product-price">Rp '+price.toLocaleString("id-ID")+'</div><div class="product-stock '+stockClass+'">Stok: '+p.stock+'</div>'+promoHtml+'</div>';
   }).join("");
 }
 function searchProducts(){loadProducts(document.getElementById("search").value)}
