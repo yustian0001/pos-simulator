@@ -1,5 +1,8 @@
 package main
-import ("net/http"; "io"; "strings")
+import ("database/sql"
+	"log"
+	"net/http"
+	"path/filepath"; "io"; "strings"; "sync"; "fmt"; "net/http/httptest")
 
 import (
 	"os"
@@ -8,11 +11,36 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	// Setup: gunakan database temporary
-	os.Setenv("TURSO_DATABASE_URL", "")
-	os.Setenv("TURSO_AUTH_TOKEN", "")
-	initDB()
+	// Force local SQLite for tests (temp file, not Turso)
+	tmpFile := filepath.Join(os.TempDir(), "pos_test.db")
+	os.Remove(tmpFile)
+	var err error
+	db, err = sql.Open("sqlite", tmpFile+"?_journal_mode=WAL&_busy_timeout=5000")
+	if err != nil {
+		log.Fatal(err)
+	}
+	db.Exec("PRAGMA foreign_keys = ON")
+	defer os.Remove(tmpFile)
 	defer db.Close()
+	// Create schema (same as main.go)
+	tables := []string{
+		"CREATE TABLE IF NOT EXISTS products (id INTEGER PRIMARY KEY AUTOINCREMENT,sku TEXT UNIQUE NOT NULL,name TEXT NOT NULL,price INTEGER DEFAULT 0,cost INTEGER DEFAULT 0,category TEXT DEFAULT 'Umum',stock INTEGER DEFAULT 0,unit TEXT DEFAULT 'pcs',barcode TEXT DEFAULT '',promo_price INTEGER DEFAULT 0,promo_active INTEGER DEFAULT 0,tax_rate REAL DEFAULT -1,active INTEGER DEFAULT 1,password_changed INTEGER DEFAULT 0,created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)",
+		"CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT,username TEXT UNIQUE NOT NULL,password TEXT NOT NULL,display_name TEXT DEFAULT '',role TEXT DEFAULT 'kasir',active INTEGER DEFAULT 1,password_changed INTEGER DEFAULT 0)",
+		"CREATE TABLE IF NOT EXISTS shifts (id INTEGER PRIMARY KEY AUTOINCREMENT,shift_name TEXT NOT NULL,cashier TEXT NOT NULL,opened_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,closed_at TIMESTAMP DEFAULT NULL,opening_cash INTEGER DEFAULT 0,closing_cash INTEGER DEFAULT 0,expected_cash INTEGER DEFAULT 0,cash_sales INTEGER DEFAULT 0,cash_out INTEGER DEFAULT 0,cash_discrepancy INTEGER DEFAULT 0,total_sales INTEGER DEFAULT 0,total_tx INTEGER DEFAULT 0,status TEXT DEFAULT 'open')",
+		"CREATE TABLE IF NOT EXISTS members (id INTEGER PRIMARY KEY AUTOINCREMENT,member_id TEXT UNIQUE NOT NULL,name TEXT NOT NULL,phone TEXT DEFAULT '',email TEXT DEFAULT '',points INTEGER DEFAULT 0,tier TEXT DEFAULT 'basic',active INTEGER DEFAULT 1,created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)",
+		"CREATE TABLE IF NOT EXISTS transactions (id INTEGER PRIMARY KEY AUTOINCREMENT,tx_id TEXT UNIQUE NOT NULL,shift_id INTEGER,total INTEGER DEFAULT 0,discount INTEGER DEFAULT 0,tax INTEGER DEFAULT 0,grand_total INTEGER DEFAULT 0,payment TEXT DEFAULT 'CASH',amount_paid INTEGER DEFAULT 0,change_amount INTEGER DEFAULT 0,customer_name TEXT DEFAULT '',member_id INTEGER DEFAULT NULL,cashier TEXT DEFAULT 'kasir',notes TEXT DEFAULT '',status TEXT DEFAULT 'completed',created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,FOREIGN KEY (shift_id) REFERENCES shifts(id))",
+		"CREATE TABLE IF NOT EXISTS tx_items (id INTEGER PRIMARY KEY AUTOINCREMENT,tx_id TEXT NOT NULL,product_id INTEGER,name TEXT NOT NULL,qty INTEGER DEFAULT 1,price INTEGER DEFAULT 0,discount INTEGER DEFAULT 0,subtotal INTEGER DEFAULT 0,notes TEXT DEFAULT '',FOREIGN KEY (tx_id) REFERENCES transactions(tx_id),FOREIGN KEY (product_id) REFERENCES products(id))",
+		"CREATE TABLE IF NOT EXISTS cash_log (id INTEGER PRIMARY KEY AUTOINCREMENT,shift_id INTEGER,type TEXT NOT NULL,amount INTEGER DEFAULT 0,description TEXT DEFAULT '',created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,FOREIGN KEY (shift_id) REFERENCES shifts(id))",
+		"CREATE TABLE IF NOT EXISTS categories (id INTEGER PRIMARY KEY AUTOINCREMENT,name TEXT UNIQUE NOT NULL,icon TEXT DEFAULT '📦')",
+		"CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY,value TEXT NOT NULL)",
+		"CREATE TABLE IF NOT EXISTS holds (id INTEGER PRIMARY KEY AUTOINCREMENT,hold_id TEXT UNIQUE NOT NULL,items_json TEXT NOT NULL,customer_name TEXT DEFAULT '',created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)",
+		"CREATE TABLE IF NOT EXISTS audit_log (id INTEGER PRIMARY KEY AUTOINCREMENT,action TEXT NOT NULL,entity TEXT NOT NULL,entity_id TEXT DEFAULT '',user TEXT DEFAULT '',details TEXT DEFAULT '',created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)",
+		"CREATE TABLE IF NOT EXISTS inventory_movements (id INTEGER PRIMARY KEY AUTOINCREMENT,product_id INTEGER NOT NULL,movement_type TEXT NOT NULL,quantity INTEGER NOT NULL,stock_before INTEGER NOT NULL,stock_after INTEGER NOT NULL,reference_type TEXT DEFAULT '',reference_id TEXT DEFAULT '',source TEXT NOT NULL DEFAULT 'manual',reason TEXT DEFAULT '',user TEXT DEFAULT '',created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,FOREIGN KEY (product_id) REFERENCES products(id))",
+		"CREATE TABLE IF NOT EXISTS idempotency_keys (key TEXT PRIMARY KEY,action TEXT NOT NULL,payload_hash TEXT NOT NULL DEFAULT '',response_json TEXT NOT NULL,status_code INTEGER DEFAULT 200,created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,expires_at TIMESTAMP NOT NULL)",
+	}
+	for _, t := range tables {
+		db.Exec(t)
+	}
 	os.Exit(m.Run())
 }
 
@@ -145,4 +173,62 @@ func createTestRequest(method, url, body string) *http.Request {
 	req, _ := http.NewRequest(method, url, reader)
 	req.Header.Set("Content-Type", "application/json")
 	return req
+}
+
+// === Concurrency Test ===
+func TestConcurrentCheckout(t *testing.T) {
+	// Setup: create product with stock=1
+	db.Exec("INSERT OR REPLACE INTO products (sku,name,price,cost,category,stock,unit,barcode,tax_rate,active) VALUES ('TEST001','Test Product',10000,5000,'Test',1,'pcs','000',-1,1)")
+
+	// Create shift
+	db.Exec("INSERT INTO shifts (shift_name,cashier,opening_cash,status) VALUES ('Test','tester',100000,'open')")
+	var shiftID int
+	db.QueryRow("SELECT id FROM shifts WHERE shift_name='Test' AND status='open'").Scan(&shiftID)
+
+	// Run 2 concurrent checkouts
+	var wg sync.WaitGroup
+	results := make(chan string, 2)
+
+	for i := 0; i < 2; i++ {
+		wg.Add(1)
+		go func(n int) {
+			defer wg.Done()
+			jsonBody := fmt.Sprintf(`{"items":[{"product_id":1,"qty":1,"discount":0,"notes":""}],"payment":"CASH","discount":0,"amount_paid":10000,"cashier":"tester","shift_id":%d}`, shiftID)
+			req, _ := http.NewRequest("POST", "/api/checkout", strings.NewReader(jsonBody))
+			req.Header.Set("Content-Type", "application/json")
+			w := &httptest.ResponseRecorder{}
+			handleCheckout(w, req)
+			results <- fmt.Sprintf("Request %d: %d", n+1, w.Code)
+		}(i)
+	}
+
+	wg.Wait()
+	close(results)
+
+	// Check results
+	successCount := 0
+	for r := range results {
+		t.Log(r)
+		if strings.Contains(r, "200") {
+			successCount++
+		}
+	}
+
+	// Only 1 should succeed (stock=1, qty=1 each)
+	if successCount > 1 {
+		t.Errorf("Expected at most 1 success for stock=1, got %d", successCount)
+	}
+
+	// Verify stock is 0
+	var stock int
+	db.QueryRow("SELECT stock FROM products WHERE id=1").Scan(&stock)
+	if stock != 0 {
+		t.Errorf("Stock should be 0 after checkout, got %d", stock)
+	}
+
+	// Cleanup
+	db.Exec("DELETE FROM products WHERE sku='TEST001'")
+	db.Exec("DELETE FROM shifts WHERE shift_name='Test'")
+	db.Exec("DELETE FROM transactions WHERE cashier='tester'")
+	db.Exec("DELETE FROM tx_items WHERE name='Test Product'")
 }

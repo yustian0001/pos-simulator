@@ -618,6 +618,8 @@ Credentials are generated on first run. Admin must change password on first logi
 | Audit events | 6 |
 | AI endpoints | 4 |
 | Build size | 12MB (stripped) |
+| Currency | IDR integer (rupiah) |
+| Currency unit | Whole rupiah (no sen/fractional) |
 | Dependencies | 4 |
 
 ---
@@ -646,7 +648,7 @@ Credentials are generated on first run. Admin must change password on first logi
 | 13 tables + PRAGMA FK + schema_migrations | ✅ Implemented |
 | Tidak ada secret di source/binary/repo | ⚠️ Partial (default removed, config.json still embedded) |
 | Endpoint sensitif ada auth | ⚠️ Partial (admin endpoints done, cashier endpoints need review) |
-| Checkout atomic + rollback | ✅ Implemented, manually verified |
+| Checkout atomic + rollback | Implemented | Manual verified; concurrent test: Not verified |
 | Semua stok punya inventory movement | ✅ Implemented (checkout + void) |
 | Void idempotent + reversal | ✅ Implemented |
 | AI idempotent | ✅ Implemented (atomic tx) |

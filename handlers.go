@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	"encoding/json"
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
@@ -22,6 +23,7 @@ import (
 var (
 	wsClients = make(map[*websocket.Conn]bool)
 	wsMu      sync.Mutex
+	checkoutMu sync.Mutex
 )
 
 type WSMessage struct {
@@ -588,11 +590,15 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 		TaxRate  float64 `json:"tax_rate"`
 		Notes    string  `json:"notes"`
 	}
+	// Prevent concurrent checkout
+	checkoutMu.Lock()
+	defer checkoutMu.Unlock()
+
 	var items []checkoutItem
 	var failedItems []string
 
 	// Use transaction for stock deduction
-	sqlTx, err := db.Begin()
+	sqlTx, err := db.BeginTx(context.Background(), &sql.TxOptions{Isolation: sql.LevelDefault})
 	if err != nil {
 		logError("checkout begin", err)
 		jsonResponse(w, map[string]string{"error": "Database error"}, 500)
@@ -814,7 +820,7 @@ func handleVoidTransaction(w http.ResponseWriter, r *http.Request) {
 	db.QueryRow("SELECT grand_total, member_id, payment FROM transactions WHERE tx_id=?", txID).Scan(&txGrandTotal, &txMemberID, &txPayment)
 
 	// Begin transaction for reversal
-	voidTx, _ := db.Begin()
+	voidTx, _ := db.BeginTx(context.Background(), &sql.TxOptions{Isolation: sql.LevelDefault})
 	defer voidTx.Rollback()
 
 	// 1. Update status
@@ -1425,7 +1431,7 @@ func handleAIWebhook(w http.ResponseWriter, r *http.Request) {
 			if newStock < 0 { newStock = 0 }
 		}
 		// Atomic: idempotency + stock update in same tx
-		adjTx, _ := db.Begin()
+		adjTx, _ := db.BeginTx(context.Background(), &sql.TxOptions{Isolation: sql.LevelDefault})
 		defer adjTx.Rollback()
 		adjTx.Exec("UPDATE products SET stock=? WHERE id=?", newStock, adj.ProductID)
 		adjTx.Exec("INSERT INTO inventory_movements (product_id,movement_type,quantity,stock_before,stock_after,reference_type,source,reason,user) VALUES (?,?,?,?,?,?,?,?,?)",
