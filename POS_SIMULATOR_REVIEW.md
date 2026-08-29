@@ -1,4 +1,4 @@
-# POS Simulator v2.2 — Final Review Document
+# POS Simulator v2.2 — Pre-Production Review Document
 
 **Last Updated:** August 29, 2026, 20:00 WIB
 **Commit:** 0068077
@@ -208,4 +208,4 @@ Endpoints below are public by design for local development. **NOT safe for inter
 
 ---
 
-*Pre-production review document. All features implemented and manually verified. 10 automated tests passing. Concurrent checkout verified with 1 test. WebSocket Origin validation added. Documentation consistent across all sections.*
+*Pre-production review. 10 automated tests passing (including 1 concurrent checkout test). WebSocket Origin validation added. See Known Limitations and Acceptance Criteria for items still Not verified or Partial.*
