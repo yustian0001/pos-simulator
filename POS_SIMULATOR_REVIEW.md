@@ -556,7 +556,7 @@ Endpoint berikut sengaja public untuk kemudahan local development. **BELUM aman 
 | Limitation | Impact | Mitigation |
 |-----------|--------|-----------|
 | Session in-memory | Hilang saat restart | Acceptable untuk single-machine |
-| No automated tests | Regression risk | Manual testing coverage |
+| Automated test coverage narrow | 10 unit tests exist, concurrency/integration untested | See section 17 |
 | WebSocket tanpa auth | Arbitrary broadcast | /api/ws-broadcast dilindungi server-only |
 | Turso fallback tanpa conflict resolution | Data drift | Documented: single mode per instance |
 | QRIS simulasi | Gak ada payment gateway | Untuk demo/training |
@@ -652,7 +652,7 @@ Credentials are generated on first run. Admin must change password on first logi
 | 13 tables + PRAGMA FK + schema_migrations | ⚠️ Partial (table exists, no version tracking) | Not verified |
 | Tidak ada secret di source/binary/repo | ⚠️ Partial (default removed, config.json still embedded) |
 | Endpoint sensitif ada auth | ⚠️ Partial (admin endpoints done, cashier endpoints need review) |
-| Checkout atomic + rollback | Implemented | Manual verified |
+| Checkout atomic + rollback | Implemented | Manual verified; concurrent: Not verified |
 | Semua stok punya inventory movement | ✅ Implemented (checkout + void) |
 | Void idempotent + reversal | ✅ Implemented |
 | AI idempotent | ✅ Implemented (atomic tx) |
@@ -665,5 +665,5 @@ Credentials are generated on first run. Admin must change password on first logi
 ---
 
 *Document generated for Perplexity review v3. All features listed are implemented and manually verified unless noted otherwise.*
-*Test commands documented. Automated test suite pending.*
+*Automated test suite: 10 tests passing (see section 17 for verification gaps).*
 *Last updated: August 29, 2026, 14:00 WIB.*
