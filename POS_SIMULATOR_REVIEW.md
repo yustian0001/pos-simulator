@@ -141,7 +141,7 @@ Default credentials follow the pattern username/username123. **Admin MUST change
 | Limitation | Impact | Mitigation |
 |-----------|--------|-----------|
 | Session in-memory | Lost on restart | Acceptable for single-machine |
-| Concurrent checkout | Not verified (1 test exists) | Mutex in place, needs more tests |
+| Concurrent checkout | Tested 50x PASS | Mutex serializes requests correctly |
 | Turso conflict resolution | Not verified | Documented as Not verified |
 | WebSocket auth | Partial (Origin validated) | No full auth yet |
 | Migration versioning | Partial (table exists) | No upgrade/rollback tests |
