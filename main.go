@@ -350,6 +350,7 @@ func initDB() {
 	)`)
 
 	// Migration: add columns that may not exist in older DBs
+	db.Exec("ALTER TABLE users ADD COLUMN password_changed INTEGER DEFAULT 0")
 	db.Exec("ALTER TABLE products ADD COLUMN tax_rate REAL DEFAULT -1")
 
 	// Seed data

@@ -71,6 +71,7 @@ func main() {
 	mux.HandleFunc("/api/login", handleLogin)
 	mux.HandleFunc("/api/csrf-token", handleGetCSRFToken)
 	mux.HandleFunc("/api/logout", handleLogout)
+	mux.HandleFunc("/api/change-password", handleChangePassword)
 	mux.HandleFunc("/api/users", adminOnly(handleGetUsers))
 	mux.HandleFunc("/api/products", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "GET" {

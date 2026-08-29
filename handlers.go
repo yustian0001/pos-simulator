@@ -625,6 +625,8 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 		sqlTx.Exec("INSERT INTO tx_items (tx_id,product_id,name,qty,price,discount,subtotal,notes) VALUES (?,?,?,?,?,?,?,?)",
 			txID, ci.ProductID, p.Name, ci.Qty, effectivePrice, ci.Discount, sub, ci.Notes)
 		sqlTx.Exec("UPDATE products SET stock=stock-? WHERE id=? AND stock>=?", ci.Qty, ci.ProductID, ci.Qty)
+		sqlTx.Exec("INSERT INTO inventory_movements (product_id,movement_type,quantity,stock_before,stock_after,reference_type,reference_id,source,reason,user) VALUES (?,?,?,?,?,?,?,?,?,?)",
+			ci.ProductID, "sale", -ci.Qty, p.Stock, p.Stock-ci.Qty, "transaction", txID, "checkout", "Sale via checkout", req.Cashier)
 	}
 
 	if len(items) == 0 {
@@ -1373,9 +1375,11 @@ func handleAIWebhook(w http.ResponseWriter, r *http.Request) {
 			newStock = currentStock - adj.Quantity
 			if newStock < 0 { newStock = 0 }
 		}
-		db.Exec("UPDATE products SET stock=? WHERE id=?", newStock, adj.ProductID)
-		// Inventory movement
-		db.Exec("INSERT INTO inventory_movements (product_id,movement_type,quantity,stock_before,stock_after,reference_type,source,reason,user) VALUES (?,?,?,?,?,?,?,?,?)",
+		// Atomic: idempotency + stock update in same tx
+		adjTx, _ := db.Begin()
+		defer adjTx.Rollback()
+		adjTx.Exec("UPDATE products SET stock=? WHERE id=?", newStock, adj.ProductID)
+		adjTx.Exec("INSERT INTO inventory_movements (product_id,movement_type,quantity,stock_before,stock_after,reference_type,source,reason,user) VALUES (?,?,?,?,?,?,?,?,?)",
 			adj.ProductID, adj.Operation, adj.Quantity, currentStock, newStock, "ai_adjustment", adj.Source, adj.Reason, "AI_AGENT")
 		// Audit
 		auditLog("ai_stock_adjustment", "product", fmt.Sprintf("%d", adj.ProductID), "AI_AGENT",
@@ -1384,9 +1388,10 @@ func handleAIWebhook(w http.ResponseWriter, r *http.Request) {
 		// Save idempotency key
 		if req.RequestID != "" {
 			resp, _ := json.Marshal(map[string]interface{}{"status": "ok", "applied": true})
-			db.Exec("INSERT INTO idempotency_keys (key,action,response_json,expires_at) VALUES (?,?,?,datetime('now'))",
+			adjTx.Exec("INSERT INTO idempotency_keys (key,action,response_json,expires_at) VALUES (?,?,?,datetime('now'))",
 				req.RequestID, "stock_adjustment", string(resp))
 		}
+		adjTx.Commit()
 		jsonResponse(w, map[string]interface{}{"status": "ok", "applied": true, "message": "Stock adjusted"}, 200)
 
 	case "restock_recommendation":
@@ -1496,7 +1501,16 @@ func handleGetAISettings(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var k, v string
 		rows.Scan(&k, &v)
-		settings[k] = v
+		// Mask secret — never return actual value
+		if k == "ai_webhook_secret" {
+			if v != "" {
+				settings[k] = "****" + v[len(v)-4:]
+			} else {
+				settings[k] = ""
+			}
+		} else {
+			settings[k] = v
+		}
 	}
 	jsonResponse(w, settings, 200)
 }
@@ -1514,3 +1528,55 @@ func handleUpdateAISettings(w http.ResponseWriter, r *http.Request) {
 	}
 	jsonResponse(w, map[string]string{"status": "ok"}, 200)
 }
+
+// === SESSION MIDDLEWARE ===
+func getSessionUser(r *http.Request) (string, string) {
+	token := r.Header.Get("Authorization")
+	if token == "" {
+		return "", ""
+	}
+	sessionsMu.RLock()
+	sess, exists := sessions[token]
+	sessionsMu.RUnlock()
+	if !exists || time.Now().After(sess.expiresAt) {
+		return "", ""
+	}
+	return token, sess.role
+}
+
+// === CHANGE PASSWORD ===
+func handleChangePassword(w http.ResponseWriter, r *http.Request) {
+	token, _ := getSessionUser(r)
+	if token == "" {
+		jsonResponse(w, map[string]string{"error": "Login required"}, 401)
+		return
+	}
+	var req struct {
+		Username    string `json:"username"`
+		OldPassword string `json:"old_password"`
+		NewPassword string `json:"new_password"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		jsonResponse(w, map[string]string{"error": "Invalid request"}, 400)
+		return
+	}
+	if len(req.NewPassword) < 6 {
+		jsonResponse(w, map[string]string{"error": "Password minimal 6 karakter"}, 400)
+		return
+	}
+	var currentHash string
+	err := db.QueryRow("SELECT password FROM users WHERE username=?", req.Username).Scan(&currentHash)
+	if err != nil {
+		jsonResponse(w, map[string]string{"error": "User not found"}, 404)
+		return
+	}
+	if err := bcrypt.CompareHashAndPassword([]byte(currentHash), []byte(req.OldPassword)); err != nil {
+		jsonResponse(w, map[string]string{"error": "Password lama salah"}, 401)
+		return
+	}
+	newHash, _ := bcrypt.GenerateFromPassword([]byte(req.NewPassword), 10)
+	db.Exec("UPDATE users SET password=?, password_changed=1 WHERE username=?", string(newHash), req.Username)
+	auditLog("password_change", "user", req.Username, req.Username, "Password changed")
+	jsonResponse(w, map[string]interface{}{"status": "ok", "message": "Password berhasil diubah"}, 200)
+}
+
