@@ -543,7 +543,7 @@ Semua perubahan stok tercatat di `inventory_movements`:
 gofmt -w . && go vet ./... && go test ./... && go test -race ./...
 ```
 
-Automated test suite exists (10 tests, all passing). Coverage limited to unit tests — see section 11 for details.
+Automated test suite exists (10 tests, all passing). Coverage limited to unit tests — see section 17 (Acceptance Criteria Status) for verification gaps.
 
 ---
 
@@ -647,20 +647,20 @@ Credentials are generated on first run. Admin must change password on first logi
 
 ## 17. Acceptance Criteria Status
 
-| Criteria | Status |
-|----------|--------|
-| 13 tables + PRAGMA FK + schema_migrations | ⚠️ Partial (table exists, no version tracking) | Not verified |
-| Tidak ada secret di source/binary/repo | ⚠️ Partial (default removed, config.json still embedded) |
-| Endpoint sensitif ada auth | ⚠️ Partial (admin endpoints done, cashier endpoints need review) |
+| Criteria | Implementation | Verification |
+|----------|-----------------|---------------|
+| 13 tables + PRAGMA FK + schema_migrations | Partial (table exists, no version tracking) | Not verified |
+| Tidak ada secret di source/binary/repo | Partial (default removed, config.json embedded) | Not verified |
+| Endpoint sensitif ada auth | Partial (admin done, cashier needs review) | Not verified |
 | Checkout atomic + rollback | Implemented | Manual verified; concurrent: Not verified |
-| Semua stok punya inventory movement | ✅ Implemented (checkout + void) |
-| Void idempotent + reversal | ✅ Implemented |
-| AI idempotent | ✅ Implemented (atomic tx) |
-| AI tidak ubah settings tanpa admin | ✅ Implemented (masked secret) |
-| Turso/local mode documented | ⚠️ Partial (basic documented) |
-| WebSocket aman | ⚠️ Partial (broadcast protected, no auth) |
-| Automated tests | ✅ `go test ./...` PASS (10 tests) |
-| Dokumen hanya klaim verified | ✅ Updated |
+| Semua stok punya inventory movement | Implemented (checkout + void) | Manual verified |
+| Void idempotent + reversal | Implemented | Manual verified |
+| AI idempotent | Implemented (atomic tx) | Manual verified |
+| AI tidak ubah settings tanpa admin | Implemented (masked secret) | Manual verified |
+| Turso/local mode documented | Partial (basic documented) | Not verified |
+| WebSocket aman | Partial (broadcast protected) | Not implemented (WS auth) |
+| Automated tests | Implemented | 10 tests PASS |
+| Dokumen konsisten | Updated | — |
 
 ---
 
