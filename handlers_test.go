@@ -155,17 +155,35 @@ func TestNullStr(t *testing.T) {
 }
 
 func TestDecodeJSON(t *testing.T) {
-	// Test with valid JSON
-	r := createTestRequest("POST", "/test", `{"key":"value"}`)
-	var result map[string]string
-	if err := decodeJSON(r, &result); err != nil {
-		t.Error("Should decode valid JSON")
+	// Test that decodeJSON works with valid body
+	body := strings.NewReader(`{"username":"admin","password":"admin123"}`)
+	r := httptest.NewRequest("POST", "/api/login", body)
+	w := httptest.NewRecorder()
+	var req struct {
+		Username string `json:"username"`
+		Password string `json:"password"`
 	}
-	if result["key"] != "value" {
-		t.Error("Should decode key=value")
+	err := decodeJSON(w, r, &req)
+	if err != nil {
+		t.Error("Valid JSON should decode without error:", err)
+	}
+	if req.Username != "admin" {
+		t.Error("Expected username admin, got", req.Username)
 	}
 }
 
+func TestDecodeJSONOversized(t *testing.T) {
+	// Test that >1MB body is rejected
+	bigBody := strings.NewReader(strings.Repeat("x", 1<<20+1)) // 1MB + 1 byte
+	r := httptest.NewRequest("POST", "/api/test", bigBody)
+	w := httptest.NewRecorder()
+	var v interface{}
+	err := decodeJSON(w, r, &v)
+	if err == nil {
+		t.Error("Expected error for >1MB body, got nil")
+	}
+	// Should not panic (was the bug with nil ResponseWriter)
+}
 func createTestRequest(method, url, body string) *http.Request {
 	var reader io.Reader
 	if body != "" {

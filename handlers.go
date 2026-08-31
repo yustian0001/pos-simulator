@@ -69,8 +69,8 @@ func requireCSRF(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
-func decodeJSON(r *http.Request, v interface{}) error {
-	r.Body = http.MaxBytesReader(nil, r.Body, 1<<20) // 1MB limit
+func decodeJSON(w http.ResponseWriter, r *http.Request, v interface{}) error {
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1MB limit
 	return json.NewDecoder(r.Body).Decode(v)
 }
 
@@ -158,7 +158,7 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 		Username string `json:"username"`
 		Password string `json:"password"`
 	}
-	if err := decodeJSON(r, &req); err != nil {
+	if err := decodeJSON(w,r, &req); err != nil {
 		jsonResponse(w, map[string]string{"status": "error", "message": "Invalid request"}, 400)
 		return
 	}
@@ -295,7 +295,7 @@ func handleGetCategories(w http.ResponseWriter, r *http.Request) {
 
 func handleAddProduct(w http.ResponseWriter, r *http.Request) {
 	var p Product
-	if err := decodeJSON(r, &p); err != nil {
+	if err := decodeJSON(w,r, &p); err != nil {
 		jsonResponse(w, map[string]string{"error": "Invalid request"}, 400)
 		return
 	}
@@ -320,7 +320,7 @@ func handleUpdateProduct(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var p Product
-	if err := decodeJSON(r, &p); err != nil {
+	if err := decodeJSON(w,r, &p); err != nil {
 		jsonResponse(w, map[string]string{"error": "Invalid request"}, 400)
 		return
 	}
@@ -356,7 +356,7 @@ func handleOpenShift(w http.ResponseWriter, r *http.Request) {
 		ShiftName   string `json:"shift_name"`
 		OpeningCash int    `json:"opening_cash"`
 	}
-	if err := decodeJSON(r, &req); err != nil {
+	if err := decodeJSON(w,r, &req); err != nil {
 		jsonResponse(w, map[string]string{"error": "Invalid request"}, 400)
 		return
 	}
@@ -442,7 +442,7 @@ func handleCloseShift(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		ClosingCash int `json:"closing_cash"`
 	}
-	if err := decodeJSON(r, &req); err != nil {
+	if err := decodeJSON(w,r, &req); err != nil {
 		jsonResponse(w, map[string]string{"error": "Invalid request"}, 400)
 		return
 	}
@@ -505,7 +505,7 @@ func handleCloseShiftSelf(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		ClosingCash int `json:"closing_cash"`
 	}
-	decodeJSON(r, &req)
+	decodeJSON(w,r, &req)
 
 	var shift Shift
 	err := db.QueryRow("SELECT id,opening_cash,shift_name FROM shifts WHERE id=? AND status='open'", id).
@@ -555,7 +555,7 @@ func handleCashDrop(w http.ResponseWriter, r *http.Request) {
 		Amount      int    `json:"amount"`
 		Description string `json:"description"`
 	}
-	decodeJSON(r, &req)
+	decodeJSON(w,r, &req)
 	if req.Description == "" {
 		req.Description = "Cash drop ke bank"
 	}
@@ -569,7 +569,7 @@ func handleCashIn(w http.ResponseWriter, r *http.Request) {
 		Amount      int    `json:"amount"`
 		Description string `json:"description"`
 	}
-	decodeJSON(r, &req)
+	decodeJSON(w,r, &req)
 	db.Exec("INSERT INTO cash_log (shift_id,type,amount,description) VALUES (?,?,?,?)", req.ShiftID, "cash_in", req.Amount, req.Description)
 	jsonResponse(w, map[string]string{"status": "ok"}, 200)
 }
@@ -625,7 +625,7 @@ func handleAddMember(w http.ResponseWriter, r *http.Request) {
 		Phone string `json:"phone"`
 		Email string `json:"email"`
 	}
-	decodeJSON(r, &req)
+	decodeJSON(w,r, &req)
 	mid := generateID("MEM", 6)
 	db.Exec("INSERT INTO members (member_id,name,phone,email) VALUES (?,?,?,?)", mid, req.Name, req.Phone, req.Email)
 	jsonResponse(w, map[string]string{"status": "ok", "member_id": mid}, 200)
@@ -648,7 +648,7 @@ func handleGetMember(w http.ResponseWriter, r *http.Request) {
 // === Checkout (with transaction + stock check) ===
 func handleCheckout(w http.ResponseWriter, r *http.Request) {
 	var req CheckoutReq
-	decodeJSON(r, &req)
+	decodeJSON(w,r, &req)
 
 	if len(req.Items) == 0 {
 		jsonResponse(w, map[string]string{"error": "Cart kosong"}, 400)
@@ -803,7 +803,7 @@ func handleHold(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req HoldReq
-	decodeJSON(r, &req)
+	decodeJSON(w,r, &req)
 	holdID := generateID("H", 6)
 	db.Exec("INSERT INTO holds (hold_id,items_json,customer_name) VALUES (?,?,?)", holdID, string(req.Items), req.CustomerName)
 	jsonResponse(w, map[string]string{"status": "ok", "hold_id": holdID}, 200)
@@ -1010,7 +1010,7 @@ func handleWSBroadcast(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var msg WSMessage
-	if err := decodeJSON(r, &msg); err != nil {
+	if err := decodeJSON(w,r, &msg); err != nil {
 		jsonResponse(w, map[string]string{"error": "Invalid request"}, 400)
 		return
 	}
@@ -1034,7 +1034,7 @@ type EVoucherReq struct {
 
 func handleEVoucher(w http.ResponseWriter, r *http.Request) {
 	var req EVoucherReq
-	decodeJSON(r, &req)
+	decodeJSON(w,r, &req)
 
 	txID := generateID("EV", 8)
 	adminFee := 1500
@@ -1356,7 +1356,7 @@ func handleGetSettings(w http.ResponseWriter, r *http.Request) {
 
 func handleUpdateSettings(w http.ResponseWriter, r *http.Request) {
 	var settings map[string]string
-	if err := decodeJSON(r, &settings); err != nil {
+	if err := decodeJSON(w,r, &settings); err != nil {
 		jsonResponse(w, map[string]string{"error": "Invalid request"}, 400)
 		return
 	}
@@ -1433,7 +1433,7 @@ func handleAIWebhook(w http.ResponseWriter, r *http.Request) {
 		Data   interface{} `json:"data"`
 		RequestID string    `json:"request_id"`
 	}
-	if err := decodeJSON(r, &req); err != nil {
+	if err := decodeJSON(w,r, &req); err != nil {
 		jsonResponse(w, map[string]string{"error": "Invalid request"}, 400)
 		return
 	}
@@ -1653,7 +1653,7 @@ func handleGetAISettings(w http.ResponseWriter, r *http.Request) {
 
 func handleUpdateAISettings(w http.ResponseWriter, r *http.Request) {
 	var req map[string]string
-	if err := decodeJSON(r, &req); err != nil {
+	if err := decodeJSON(w,r, &req); err != nil {
 		jsonResponse(w, map[string]string{"error": "Invalid"}, 400)
 		return
 	}
@@ -1692,7 +1692,7 @@ func handleChangePassword(w http.ResponseWriter, r *http.Request) {
 		OldPassword string `json:"old_password"`
 		NewPassword string `json:"new_password"`
 	}
-	if err := decodeJSON(r, &req); err != nil {
+	if err := decodeJSON(w,r, &req); err != nil {
 		jsonResponse(w, map[string]string{"error": "Invalid request"}, 400)
 		return
 	}

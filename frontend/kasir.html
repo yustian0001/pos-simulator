@@ -303,7 +303,7 @@ async function openShift(){
   var name=document.getElementById("shift-name").value||"Shift";
   var cash=parseInt(document.getElementById("opening-cash").value)||500000;
   var token=currentToken||sessionStorage.getItem("kasir_token")||"";
-  var r=await fetch(API+"/api/shifts/open",{method:"POST",headers:{"Content-Type":"application/json","Authorization":token},body:JSON.stringify({cashier:currentUser,shift_name:name,opening_cash:cash})});
+  var r=await fetch(API+"/api/shifts/open",{method:"POST",headers:{"Content-Type":"application/json","Authorization":token,"X-CSRF-Token":csrfToken},body:JSON.stringify({cashier:currentUser,shift_name:name,opening_cash:cash})});
   var d=await r.json();
   if(d.shift_id){
     currentShiftId=d.shift_id;
@@ -324,7 +324,7 @@ async function logoutKasir(){
     try{
       await fetch(API+"/api/shifts/"+shiftId+"/close-self",{
         method:"POST",
-        headers:{"Content-Type":"application/json","Authorization":token},
+        headers:{"Content-Type":"application/json","Authorization":token,"X-CSRF-Token":csrfToken},
         body:JSON.stringify({closing_cash:0})
       });
     }catch(e){}
@@ -469,7 +469,7 @@ async function checkout(){
   if(!cart.length)return;
   var paid=payment==="CASH"?(parseInt(document.getElementById("amount-paid").value)||0):0;
   var items=cart.map(function(i){return{product_id:i.product_id,qty:i.qty,discount:0,notes:""}});
-  var r=await fetch(API+"/api/checkout",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({items:items,payment:payment,discount:0,amount_paid:paid,cashier:currentUser,shift_id:currentShiftId,member_id:activeMember?activeMember.member_id:""})});
+  var r=await fetch(API+"/api/checkout",{method:"POST",headers:{"Content-Type":"application/json","X-CSRF-Token":csrfToken},body:JSON.stringify({items:items,payment:payment,discount:0,amount_paid:paid,cashier:currentUser,shift_id:currentShiftId,member_id:activeMember?activeMember.member_id:""})});
   var tx=await r.json();
   if(tx.id){
     lastTxReceipt=tx;
