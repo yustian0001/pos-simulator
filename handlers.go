@@ -49,7 +49,28 @@ func jsonResponse(w http.ResponseWriter, data interface{}, status int) {
 	json.NewEncoder(w).Encode(data)
 }
 
+// CSRF middleware for state-changing endpoints
+func requireCSRF(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// Skip CSRF for GET/HEAD/OPTIONS
+		if r.Method == "GET" || r.Method == "HEAD" || r.Method == "OPTIONS" {
+			next(w, r)
+			return
+		}
+		csrf := r.Header.Get("X-CSRF-Token")
+		if csrf == "" {
+			csrf = r.FormValue("csrf_token")
+		}
+		if !validateCSRF(csrf) {
+			jsonResponse(w, map[string]string{"error": "CSRF token invalid or missing"}, 403)
+			return
+		}
+		next(w, r)
+	}
+}
+
 func decodeJSON(r *http.Request, v interface{}) error {
+	r.Body = http.MaxBytesReader(nil, r.Body, 1<<20) // 1MB limit
 	return json.NewDecoder(r.Body).Decode(v)
 }
 
@@ -173,9 +194,6 @@ func handleLogout(w http.ResponseWriter, r *http.Request) {
 
 func requireAuth(r *http.Request, requiredRole string) bool {
 	token := r.Header.Get("Authorization")
-	if token == "" {
-		token = r.URL.Query().Get("token")
-	}
 	if token == "" {
 		return false
 	}
@@ -779,6 +797,11 @@ func nullStr(v string) interface{} {
 
 // === Hold ===
 func handleHold(w http.ResponseWriter, r *http.Request) {
+	token, _ := getSessionUser(r)
+	if token == "" {
+		jsonResponse(w, map[string]string{"error": "Login required"}, 401)
+		return
+	}
 	var req HoldReq
 	decodeJSON(r, &req)
 	holdID := generateID("H", 6)
@@ -923,30 +946,7 @@ func handleVoidTransaction(w http.ResponseWriter, r *http.Request) {
 
 	voidTx.Commit()
 	jsonResponse(w, map[string]interface{}{"status": "ok", "message": "Transaction voided with full reversal"}, 200)
-
-	// Restore stock
-	itemRows, _ := db.Query("SELECT product_id,qty FROM tx_items WHERE tx_id=?", txID)
-	for itemRows.Next() {
-		var pid, qty int
-		itemRows.Scan(&pid, &qty)
-		db.Exec("UPDATE products SET stock=stock+? WHERE id=?", qty, pid)
-	}
-	itemRows.Close()
-
-	// Update shift
-	var grandTotal int
-	var shiftID *int
-	db.QueryRow("SELECT grand_total,shift_id FROM transactions WHERE tx_id=?", txID).Scan(&grandTotal, &shiftID)
-	if shiftID != nil {
-		db.Exec("UPDATE shifts SET total_sales=total_sales-?, total_tx=total_tx-1 WHERE id=?", grandTotal, *shiftID)
-	}
-
-	// Mark voided
-	db.Exec("UPDATE transactions SET status='voided' WHERE tx_id=?", txID)
-	jsonResponse(w, map[string]string{"status": "ok"}, 200)
 }
-
-// === Stats ===
 func handleGetStats(w http.ResponseWriter, r *http.Request) {
 	today := time.Now().Format("2006-01-02")
 	todayPattern := today + "%"
@@ -1308,15 +1308,35 @@ func handleRestore(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
+	// Validate SQLite header (first 16 bytes must be "SQLite format 3\0")
+	header := make([]byte, 16)
+	n, err := file.Read(header)
+	if err != nil || n < 16 || string(header[:15]) != "SQLite format 3" {
+		jsonResponse(w, map[string]string{"error": "File bukan database SQLite yang valid"}, 400)
+		return
+	}
+	// Seek back to start
+	file.(io.Seeker).Seek(0, io.SeekStart)
+
 	dbPath := getDataDir() + "/pos.db"
-	out, err := os.Create(dbPath)
+	// Write to temp file first, then rename (atomic)
+	tmpPath := dbPath + ".restore_tmp"
+	out, err := os.Create(tmpPath)
 	if err != nil {
 		logError("handleRestore create", err)
 		jsonResponse(w, map[string]string{"error": "Gagal simpan file"}, 500)
 		return
 	}
-	defer out.Close()
 	io.Copy(out, file)
+	out.Close()
+
+	// Atomic rename
+	if err := os.Rename(tmpPath, dbPath); err != nil {
+		os.Remove(tmpPath)
+		logError("handleRestore rename", err)
+		jsonResponse(w, map[string]string{"error": "Gagal replace database"}, 500)
+		return
+	}
 
 	jsonResponse(w, map[string]string{"status": "ok", "message": "Database berhasil direstore. Restart server untuk menerapkan."}, 200)
 }
@@ -1649,9 +1669,6 @@ func handleUpdateAISettings(w http.ResponseWriter, r *http.Request) {
 func getSessionUser(r *http.Request) (string, string) {
 	token := r.Header.Get("Authorization")
 	if token == "" {
-		token = r.URL.Query().Get("token")
-	}
-	if token == "" {
 		return "", ""
 	}
 	sessionsMu.RLock()
@@ -1701,20 +1718,29 @@ func handleChangePassword(w http.ResponseWriter, r *http.Request) {
 
 
 // === DISPLAY TOKEN ===
-var displayTokens = make(map[string]time.Time)
+var displayTokens = struct {
+	sync.RWMutex
+	data map[string]time.Time
+}{data: make(map[string]time.Time)}
 
 func generateDisplayToken() string {
 	token := generateID("DISP", 8)
-	displayTokens[token] = time.Now().Add(24 * time.Hour)
+	displayTokens.Lock()
+	displayTokens.data[token] = time.Now().Add(24 * time.Hour)
+	displayTokens.Unlock()
 	return token
 }
 
 func validateDisplayToken(token string) bool {
 	if token == "" { return false }
-	exp, ok := displayTokens[token]
+	displayTokens.RLock()
+	exp, ok := displayTokens.data[token]
+	displayTokens.RUnlock()
 	if !ok { return false }
 	if time.Now().After(exp) {
-		delete(displayTokens, token)
+		displayTokens.Lock()
+		delete(displayTokens.data, token)
+		displayTokens.Unlock()
 		return false
 	}
 	return true

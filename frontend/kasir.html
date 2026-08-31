@@ -392,7 +392,7 @@ async function loadProducts(search){
     var price=p.promo_active&&p.promo_price>0?p.promo_price:p.price;
     var stockClass=p.stock<10?"low":"";
     var promoHtml=p.promo_active&&p.promo_price>0?'<div class="product-promo">Promo!</div>':'';
-    return '<div class="product-card" data-id="'+p.id+'" data-name="'+p.name.replace(/"/g,'&quot;')+'" data-price="'+price+'" data-stock="'+p.stock+'" onclick="addFromCard(this)"><div class="product-emoji">'+(cats[p.category]||"📦")+'</div><div class="product-name">'+p.name+'</div><div class="product-price">Rp '+price.toLocaleString("id-ID")+'</div><div class="product-stock '+stockClass+'">Stok: '+p.stock+'</div>'+promoHtml+'</div>';
+    return '<div class="product-card" data-id="'+p.id+'" data-name="'+esc(p.name).replace(/"/g,'&quot;')+'" data-price="'+price+'" data-stock="'+p.stock+'" onclick="addFromCard(this)"><div class="product-emoji">'+(cats[p.category]||"📦")+'</div><div class="product-name">'+esc(p.name)+'</div><div class="product-price">Rp '+price.toLocaleString("id-ID")+'</div><div class="product-stock '+stockClass+'">Stok: '+p.stock+'</div>'+promoHtml+'</div>';
   }).join("");
 }
 function searchProducts(){loadProducts(document.getElementById("search").value)}
@@ -422,7 +422,7 @@ function renderCart(){
   if(!cart.length){el.innerHTML='<div class="cart-empty"><div class="icon">🛒</div><p>Keranjang kosong</p></div>';updateTotal();return}
   var html="";
   cart.forEach(function(item,i){
-    html+='<div class="cart-item"><div class="cart-item-info"><div class="cart-item-name">'+item.name+'</div><div class="cart-item-price">Rp '+item.price.toLocaleString("id-ID")+' x '+item.qty+'</div></div><div class="cart-qty"><button class="qty-btn qty-minus" onclick="changeQty('+i+',-1)">-</button><span class="qty-value">'+item.qty+'</span><button class="qty-btn qty-plus" onclick="changeQty('+i+',1)">+</button></div><div class="cart-item-total">Rp '+(item.price*item.qty).toLocaleString("id-ID")+'</div><button class="cart-item-remove" onclick="removeFromCart('+i+')">✕</button></div>';
+    html+='<div class="cart-item"><div class="cart-item-info"><div class="cart-item-name">'+esc(item.name)+'</div><div class="cart-item-price">Rp '+item.price.toLocaleString("id-ID")+' x '+item.qty+'</div></div><div class="cart-qty"><button class="qty-btn qty-minus" onclick="changeQty('+i+',-1)">-</button><span class="qty-value">'+item.qty+'</span><button class="qty-btn qty-plus" onclick="changeQty('+i+',1)">+</button></div><div class="cart-item-total">Rp '+(item.price*item.qty).toLocaleString("id-ID")+'</div><button class="cart-item-remove" onclick="removeFromCart('+i+')">✕</button></div>';
   });
   el.innerHTML=html;
   document.getElementById("cart-count").textContent=cart.reduce(function(s,i){return s+i.qty},0);
@@ -478,7 +478,7 @@ async function checkout(){
     if(tx.warnings&&tx.warnings.length>0){alert("Perhatian:\n"+tx.warnings.join("\n"))}
     if(tx.change>0){document.getElementById("modal-change-row").style.display="block";document.getElementById("modal-change").textContent="Rp "+tx.change.toLocaleString("id-ID")}
     else{document.getElementById("modal-change-row").style.display="none"}
-    document.getElementById("modal-receipt").innerHTML="<b>Items:</b> "+tx.items.map(function(i){return i.name+" x"+i.qty}).join(", ");
+    document.getElementById("modal-receipt").innerHTML="<b>Items:</b> "+tx.items.map(function(i){return esc(i.name)+" x"+i.qty}).join(", ");
     document.getElementById("payment-modal").style.display="flex";
     cart=[];document.getElementById("amount-paid").value="";renderCart();
     fetch(API+"/api/ws-broadcast",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({type:"new_transaction",data:{...tx,cashier:currentDisplayName,member:activeMember?activeMember.name:""}})}).catch(function(){});

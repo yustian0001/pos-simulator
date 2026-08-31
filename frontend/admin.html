@@ -302,8 +302,8 @@ async function loadShifts(){
     const qrisSales=Math.max(0, (x.total_sales||0) - (x.cash_sales||0));
     return `<tr>
       <td style="font-size:11px">#${x.id}</td>
-      <td>${x.shift_name}</td>
-      <td>${x.cashier}</td>
+      <td>${esc(x.shift_name)}</td>
+      <td>${esc(x.cashier)}</td>
       <td style="text-align:right">Rp${(x.opening_cash||0).toLocaleString("id-ID")}</td>
       <td style="text-align:right">Rp${(x.cash_sales||0).toLocaleString("id-ID")}</td>
       <td style="text-align:right;color:#2563eb;font-weight:600">Rp${qrisSales.toLocaleString("id-ID")}</td>
@@ -342,12 +342,12 @@ async function loadCash(){
     <td>#${l.shift_id}</td>
     <td><span class="badge badge-${l.type==='opening'?'blue':l.type==='closing'?'green':l.type==='qris_sales'?'purple':l.type==='cash_drop'?'red':'yellow'}">${l.type}</span></td>
     <td style="text-align:right;font-weight:700">Rp${l.amount.toLocaleString("id-ID")}</td>
-    <td style="font-size:11px;color:#64748b">${l.description}</td>
+    <td style="font-size:11px;color:#64748b">${esc(l.description)}</td>
   </tr>`).join("");
 }
 
 // MEMBERS
-async function loadMembers(){const r=await authFetch("/api/members");const m=await r.json();document.getElementById("members-table").innerHTML=m.map(x=>`<tr><td style="font-family:monospace;font-size:11px">${x.member_id}</td><td style="font-weight:600">${x.name}</td><td>${x.phone||'-'}</td><td style="text-align:center;font-weight:700">${x.points.toLocaleString("id-ID")}</td><td style="text-align:center"><span class="badge ${x.tier==='gold'?'badge-yellow':x.tier==='silver'?'badge-blue':'badge-green'}">${x.tier.toUpperCase()}</span></td></tr>`).join("")}
+async function loadMembers(){const r=await authFetch("/api/members");const m=await r.json();document.getElementById("members-table").innerHTML=m.map(x=>`<tr><td style="font-family:monospace;font-size:11px">${x.member_id}</td><td style="font-weight:600">${esc(x.name)}</td><td>${esc(x.phone||'-'}</td><td style="text-align:center;font-weight:700">${x.points.toLocaleString("id-ID")}</td><td style="text-align:center"><span class="badge ${x.tier==='gold'?'badge-yellow':x.tier==='silver'?'badge-blue':'badge-green'}">${x.tier.toUpperCase()}</span></td></tr>`).join("")}
 function showAddMember(){document.getElementById("member-modal").classList.remove("hidden")}
 async function saveMember(){await authFetch("/api/members",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:document.getElementById("m-name").value,phone:document.getElementById("m-phone").value,email:document.getElementById("m-email").value})});closeModal("member-modal");loadMembers()}
 
@@ -363,7 +363,7 @@ async function loadTransactions(){
     <td style="font-size:11px">${formatDate(t.created_at)}</td>
     <td style="text-align:right;font-weight:700">Rp${t.grand_total.toLocaleString("id-ID")}</td>
     <td><span class="badge ${t.payment==='CASH'?'badge-green':'badge-blue'}">${t.payment}</span></td>
-    <td>${t.cashier}</td>
+    <td>${esc(t.cashier)}</td>
     <td style="text-align:center"><span class="badge ${t.status==='completed'?'badge-green':'badge-red'}">${t.status}</span></td>
     <td style="text-align:center">${t.status==='completed'?`<button class="btn btn-ghost btn-sm" style="color:#dc2626" onclick="voidTx('${t.tx_id}')">Void</button>`:'-'}</td>
   </tr>`).join("");

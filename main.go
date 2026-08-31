@@ -212,15 +212,11 @@ func getDataDir() string {
 }
 
 func initDB() {
-	// Read config from embedded config.json
-	var config struct {
-		TursoURL   string `json:"turso_url"`
-		TursoToken string `json:"turso_token"`
-	}
-	json.Unmarshal(configFile, &config)
-
-	tursoURL := config.TursoURL
-	tursoToken := config.TursoToken
+	// Read config from env vars ONLY (no embedded secrets)
+	tursoURL := os.Getenv("TURSO_DATABASE_URL")
+	tursoToken := os.Getenv("TURSO_AUTH_TOKEN")
+	// Environment variables ONLY - no embedded or file config
+	// Set TURSO_DATABASE_URL and TURSO_AUTH_TOKEN as env vars
 	if v := os.Getenv("TURSO_DATABASE_URL"); v != "" {
 		tursoURL = v
 	}
@@ -373,6 +369,13 @@ func initDB() {
 	db.Exec("ALTER TABLE users ADD COLUMN password_changed INTEGER DEFAULT 0")
 	db.Exec("ALTER TABLE products ADD COLUMN tax_rate REAL DEFAULT -1")
 
+	db.Exec(`CREATE TABLE IF NOT EXISTS audit_log (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		action TEXT NOT NULL, entity TEXT DEFAULT '',
+		entity_id TEXT DEFAULT '', user TEXT DEFAULT '',
+		details TEXT DEFAULT '',
+		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+	)`)
 	db.Exec("INSERT OR IGNORE INTO schema_migrations (version,name,checksum) VALUES (1,'initial','v2.2')")
 
 	// Seed data

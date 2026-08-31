@@ -1,2 +1,30 @@
-# POS Simulator v2.2
-# All files included for team clone
+# Secrets and local deployment config
+config.json
+.env
+.env.*
+*.pem
+*.key
+*.crt
+
+# Local databases and WAL files
+*.db
+*.db-shm
+*.db-wal
+pos_replica.db
+
+# Binaries and local runtime data
+pos-server
+pos-server.exe
+cloudflared.exe
+chrome-pos-profile/
+POS_Simulator.exe
+
+# Editor and OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Test artifacts and coverage
+coverage.out
+*.test

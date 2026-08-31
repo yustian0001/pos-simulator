@@ -18,8 +18,6 @@ import (
 //go:embed frontend/*
 var frontendFS embed.FS
 
-//go:embed config.json
-var configFile []byte
 
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool {
@@ -96,13 +94,13 @@ func main() {
 	mux.HandleFunc("/api/categories", handleGetCategories)
 	mux.HandleFunc("/api/shifts/open", handleOpenShift)
 	mux.HandleFunc("/api/shifts/active", handleGetActiveShifts)
-	mux.HandleFunc("/api/shifts", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/api/shifts", requireCSRF(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "POST" {
 			handleOpenShift(w, r)
 		} else {
 			handleGetShifts(w, r)
 		}
-	})
+	}))
 	mux.HandleFunc("/api/shifts/", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "POST" {
 			if strings.HasSuffix(r.URL.Path, "/close-self") {
@@ -115,22 +113,22 @@ func main() {
 	mux.HandleFunc("/api/cash/drop", adminOnly(handleCashDrop))
 	mux.HandleFunc("/api/cash/in", adminOnly(handleCashIn))
 	mux.HandleFunc("/api/cash/log/", handleGetCashLog)
-	mux.HandleFunc("/api/members", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/api/members", requireCSRF(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "GET" {
 			handleGetMembers(w, r)
 		} else if r.Method == "POST" {
 			handleAddMember(w, r)
 		}
-	})
+	}))
 	mux.HandleFunc("/api/members/", handleGetMember)
-	mux.HandleFunc("/api/checkout", handleCheckout)
-	mux.HandleFunc("/api/hold", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/api/checkout", requireCSRF(handleCheckout))
+	mux.HandleFunc("/api/hold", requireCSRF(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "GET" {
 			handleGetHolds(w, r)
 		} else if r.Method == "POST" {
 			handleHold(w, r)
 		}
-	})
+	}))
 	mux.HandleFunc("/api/holds/", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "DELETE" {
 			handleDeleteHold(w, r)
@@ -151,13 +149,13 @@ func main() {
 	mux.HandleFunc("/api/payment-breakdown", handlePaymentBreakdown)
 	mux.HandleFunc("/api/daily-report", handleDailyReport)
 	mux.HandleFunc("/api/stock-report", handleStockReport)
-	mux.HandleFunc("/api/e-voucher", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/api/e-voucher", requireCSRF(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "GET" {
 			handleGetEVouchers(w, r)
 		} else if r.Method == "POST" {
 			handleEVoucher(w, r)
 		}
-	})
+	}))
 	mux.HandleFunc("/api/quick-access", handleQuickAccess)
 	mux.HandleFunc("/api/receipt/", handleReceipt)
 	mux.HandleFunc("/api/alerts/low-stock", handleLowStock)
@@ -165,8 +163,8 @@ func main() {
 	mux.HandleFunc("/api/restore", adminOnly(handleRestore))
 	mux.HandleFunc("/api/ai/webhook", handleAIWebhook)
 	mux.HandleFunc("/api/display-token", handleGenerateDisplayToken)
-	mux.HandleFunc("/api/ai/restock-candidates", handleRestockCandidates)
-	mux.HandleFunc("/api/ai/report", handleAIReport)
+	mux.HandleFunc("/api/ai/restock-candidates", adminOnly(handleRestockCandidates))
+	mux.HandleFunc("/api/ai/report", adminOnly(handleAIReport))
 	mux.HandleFunc("/api/ai/settings", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "GET" {
 			handleGetAISettings(w, r)
@@ -260,7 +258,10 @@ func main() {
 		}
 	}()
 
-// Auto-start Cloudflare Tunnel if cloudflared.exe exists
+// Auto-start Cloudflare Tunnel ONLY if ENABLE_ADMIN_TUNNEL=true
+	if os.Getenv("ENABLE_ADMIN_TUNNEL") != "true" {
+		fmt.Println("[POS] Admin tunnel DISABLED (set ENABLE_ADMIN_TUNNEL=true to enable)")
+	} else {
 	go func() {
 		time.Sleep(3 * time.Second)
 		exePath, _ := os.Executable()
@@ -273,7 +274,7 @@ func main() {
 		fmt.Printf("[POS] Found cloudflared at: %s\n", cloudflared)
 		fmt.Printf("[POS] Starting Cloudflare Tunnel...\n")
 		fmt.Printf("[POS] Buka terminal cloudflared untuk lihat URL\n")
-		fmt.Printf("[POS] Atau jalankan manual: cloudflared tunnel --url http://localhost:%s\n", port)
+		fmt.Printf("[POS] Atau jalankan manual: ENABLE_ADMIN_TUNNEL=true cloudflared tunnel --url http://localhost:%s\n", port)
 		// Open cloudflared in separate console window
 		if runtime.GOOS == "windows" {
 			cmd := exec.Command("cmd", "/c", "start", "cmd", "/k", cloudflared, "tunnel", "--url", "http://localhost:"+port)
@@ -283,6 +284,7 @@ func main() {
 			cmd.Start()
 		}
 	}()
+	}
 
 log.Fatal(http.ListenAndServe(":"+port, mux))
 }
