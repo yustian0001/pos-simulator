@@ -68,14 +68,51 @@ func deleteSession(token string) {
 func cleanupSessions() {
 	for {
 		time.Sleep(5 * time.Minute)
-		sessionsMu.Lock()
 		now := time.Now()
+
+		// Clean expired sessions
+		sessionsMu.Lock()
 		for token, s := range sessions {
 			if now.After(s.expiresAt) {
 				delete(sessions, token)
 			}
 		}
 		sessionsMu.Unlock()
+
+		// Clean expired CSRF tokens
+		csrfTokens.Lock()
+		for token, entry := range csrfTokens.data {
+			if now.After(entry.expiresAt) {
+				delete(csrfTokens.data, token)
+			}
+		}
+		csrfTokens.Unlock()
+
+		// Clean expired display tokens
+		displayTokens.Lock()
+		for token, exp := range displayTokens.data {
+			if now.After(exp) {
+				delete(displayTokens.data, token)
+			}
+		}
+		displayTokens.Unlock()
+
+		// Clean stale rate limiter entries
+		loginAttempts.Lock()
+		for key, attempts := range loginAttempts.data {
+			var valid []time.Time
+			for _, t := range attempts {
+				if now.Sub(t) < 10*time.Minute {
+					valid = append(valid, t)
+				}
+			}
+			if len(valid) == 0 {
+				delete(loginAttempts.data, key)
+			} else {
+				loginAttempts.data[key] = valid
+			}
+		}
+		loginAttempts.Unlock()
 	}
 }
 

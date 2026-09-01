@@ -3061,7 +3061,7 @@
 ```
 1|{
 2|  "turso_url": "libsql://pos-db-remasbara.aws-ap-south-1.turso.io",
-3|  "turso_token": "eyJhbG...PNBw"
+3|  "turso_token": "[REDACTED]"
 4|}
 5|
 ```

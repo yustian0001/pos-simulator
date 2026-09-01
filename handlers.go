@@ -57,11 +57,25 @@ func requireCSRF(next http.HandlerFunc) http.HandlerFunc {
 			next(w, r)
 			return
 		}
+		// Verify session is valid first
+		token := r.Header.Get("Authorization")
+		if token == "" {
+			jsonResponse(w, map[string]string{"error": "Login required"}, 401)
+			return
+		}
+		sessionsMu.RLock()
+		sess, exists := sessions[token]
+		sessionsMu.RUnlock()
+		if !exists || time.Now().After(sess.expiresAt) {
+			jsonResponse(w, map[string]string{"error": "Session expired"}, 401)
+			return
+		}
+		// Validate CSRF token
 		csrf := r.Header.Get("X-CSRF-Token")
 		if csrf == "" {
 			csrf = r.FormValue("csrf_token")
 		}
-		if !validateCSRF(csrf) {
+		if !validateCSRF(csrf, token) {
 			jsonResponse(w, map[string]string{"error": "CSRF token invalid or missing"}, 403)
 			return
 		}
@@ -127,28 +141,35 @@ func checkRateLimit(key string, maxAttempts int, window time.Duration) bool {
 // === CSRF TOKEN ===
 var csrfTokens = struct {
 	sync.RWMutex
-	data map[string]time.Time
-}{data: make(map[string]time.Time)}
+	data map[string]csrfTokenEntry
+}{data: make(map[string]csrfTokenEntry)}
 
-func generateCSRFToken() string {
+type csrfTokenEntry struct {
+	sessionToken string
+	expiresAt    time.Time
+}
+
+func generateCSRFToken(sessionToken string) string {
 	b := make([]byte, 16)
 	rand.Read(b)
 	token := hex.EncodeToString(b)
 	csrfTokens.Lock()
-	csrfTokens.data[token] = time.Now().Add(30 * time.Minute)
+	csrfTokens.data[token] = csrfTokenEntry{sessionToken: sessionToken, expiresAt: time.Now().Add(30 * time.Minute)}
 	csrfTokens.Unlock()
 	return token
 }
 
-func validateCSRF(token string) bool {
+func validateCSRF(token string, sessionToken string) bool {
 	csrfTokens.RLock()
-	expiry, exists := csrfTokens.data[token]
+	entry, exists := csrfTokens.data[token]
 	csrfTokens.RUnlock()
-	if !exists || time.Now().After(expiry) {
+	if !exists || time.Now().After(entry.expiresAt) {
 		return false
 	}
-	// Token is session-level — do NOT delete after use
-	// Token expires via expiry timestamp, cleaned up by cleanupSessions()
+	// Verify CSRF token is bound to this session
+	if entry.sessionToken != sessionToken {
+		return false
+	}
 	return true
 }
 
@@ -722,7 +743,16 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 	}
 
 	discount := req.Discount
+	// Validate discount
+	if discount < 0 {
+		jsonResponse(w, map[string]string{"error": "Diskon tidak boleh negatif"}, 400)
+		return
+	}
 	if req.DiscountType == "percent" {
+		if req.Discount > 100 {
+			jsonResponse(w, map[string]string{"error": "Diskon persen tidak boleh lebih dari 100%"}, 400)
+			return
+		}
 		discount = int(math.Round(float64(total) * float64(req.Discount) / 100))
 	}
 	// Per-product tax calculation
@@ -1380,7 +1410,20 @@ func handleUpdateSettings(w http.ResponseWriter, r *http.Request) {
 
 // CSRF token getter
 func handleGetCSRFToken(w http.ResponseWriter, r *http.Request) {
-	token := generateCSRFToken()
+	// Get session to bind CSRF token to this session
+	sessionToken := r.Header.Get("Authorization")
+	if sessionToken == "" {
+		jsonResponse(w, map[string]string{"error": "Login required"}, 401)
+		return
+	}
+	sessionsMu.RLock()
+	sess, exists := sessions[sessionToken]
+	sessionsMu.RUnlock()
+	if !exists || time.Now().After(sess.expiresAt) {
+		jsonResponse(w, map[string]string{"error": "Session expired"}, 401)
+		return
+	}
+	token := generateCSRFToken(sessionToken)
 	jsonResponse(w, map[string]string{"csrf_token": token}, 200)
 }
 
@@ -1775,8 +1818,8 @@ func handleStockAdjustment(w http.ResponseWriter, r *http.Request) {
 		jsonResponse(w, map[string]string{"error": "Invalid request"}, 400)
 		return
 	}
-	if req.ProductID == 0 || req.Quantity < 0 || req.Reason == "" {
-		jsonResponse(w, map[string]string{"error": "product_id, quantity, and reason required"}, 400)
+	if req.ProductID == 0 || req.Quantity <= 0 || req.Reason == "" {
+		jsonResponse(w, map[string]string{"error": "product_id, quantity (>0), and reason required"}, 400)
 		return
 	}
 

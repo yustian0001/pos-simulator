@@ -95,28 +95,32 @@ func TestRateLimiter(t *testing.T) {
 }
 
 func TestCSRFToken(t *testing.T) {
-	token := generateCSRFToken()
+	token := generateCSRFToken("test-session")
 	if token == "" {
 		t.Error("CSRF token should not be empty")
 	}
-	// Should be valid
-	if !validateCSRF(token) {
-		t.Error("CSRF token should be valid")
+	// Token with wrong session should fail
+	if validateCSRF(token, "wrong-session") {
+		t.Error("CSRF token should not work with wrong session")
 	}
-	// Session-level: token is reusable (not consumed after use)
-	if !validateCSRF(token) {
+	// Token with correct session should work
+	if !validateCSRF(token, "test-session") {
+		t.Error("CSRF token should work with correct session")
+	}
+	// Reusable within session
+	if !validateCSRF(token, "test-session") {
 		t.Error("CSRF token should be reusable within session")
 	}
 }
 
 func TestCSRFTokenExpiry(t *testing.T) {
-	token := generateCSRFToken()
+	token := generateCSRFToken("test-session")
 	// Manually expire
 	csrfTokens.Lock()
-	csrfTokens.data[token] = time.Now().Add(-1 * time.Minute)
+	csrfTokens.data[token] = csrfTokenEntry{sessionToken: "test-session", expiresAt: time.Now().Add(-1 * time.Minute)}
 	csrfTokens.Unlock()
 
-	if validateCSRF(token) {
+	if validateCSRF(token, "") {
 		t.Error("Expired CSRF token should be invalid")
 	}
 }
