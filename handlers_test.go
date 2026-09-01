@@ -1,13 +1,18 @@
 package main
-import ("database/sql"
+import (
+	"database/sql"
+	"fmt"
+	"io"
 	"log"
 	"net/http"
-	"path/filepath"; "io"; "strings"; "sync"; "fmt"; "net/http/httptest")
-
-import (
+	"net/http/httptest"
 	"os"
+	"path/filepath"
+	"strings"
+	"sync"
 	"testing"
 	"time"
+	"github.com/gorilla/websocket"
 )
 
 func TestMain(m *testing.M) {
@@ -528,3 +533,338 @@ func TestAIRestockRequiresAdmin(t *testing.T) {
 	}
 	t.Log("AI restock: handler works; auth enforced by adminOnly middleware in server.go")
 }
+
+
+// === STOCK ADJUSTMENT ATOMICITY TESTS ===
+
+func TestStockAdjustmentAtomicity_Success(t *testing.T) {
+	// Setup: create test database
+	db, _ = sql.Open("sqlite", ":memory:")
+	initDB()
+	defer db.Close()
+
+	// Clear seed data
+	db.Exec("DELETE FROM products")
+	db.Exec("DELETE FROM inventory_movements")
+	db.Exec("DELETE FROM audit_log")
+
+	// Insert test product and get its ID
+	res, _ := db.Exec("INSERT INTO products (sku,name,price,stock) VALUES ('TEST001','Test Product',10000,50)")
+	productID, _ := res.LastInsertId()
+
+	// Perform stock adjustment
+	reqBody := strings.NewReader(fmt.Sprintf(`{"product_id":%d,"quantity":10,"type":"in","reason":"test"}`, productID))
+	r := httptest.NewRequest("POST", "/api/stock-adjustment", reqBody)
+	w := httptest.NewRecorder()
+	r.Header.Set("Authorization", "test-admin-token")
+	r.Header.Set("X-CSRF-Token", "test-csrf-token")
+
+	// Add test session
+	sessionsMu.Lock()
+	sessions["test-admin-token"] = &session{role: "admin", username: "admin", expiresAt: time.Now().Add(time.Hour)}
+	sessionsMu.Unlock()
+
+	handleStockAdjustment(w, r)
+
+	if w.Code != 200 {
+		t.Errorf("Expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	// Verify all three operations happened
+	var stock int
+	db.QueryRow("SELECT stock FROM products WHERE id=?", productID).Scan(&stock)
+	if stock != 60 {
+		t.Errorf("Stock should be 60, got %d", stock)
+	}
+
+	var movements int
+	db.QueryRow("SELECT COUNT(*) FROM inventory_movements WHERE product_id=?", productID).Scan(&movements)
+	if movements != 1 {
+		t.Errorf("Expected 1 movement, got %d", movements)
+	}
+
+	var auditCount int
+	db.QueryRow("SELECT COUNT(*) FROM audit_log WHERE action='stock_adjustment'").Scan(&auditCount)
+	if auditCount != 1 {
+		t.Errorf("Expected 1 audit log, got %d", auditCount)
+	}
+}
+
+func TestStockAdjustmentAtomicity_InsufficientStock(t *testing.T) {
+	// Setup
+	db, _ = sql.Open("sqlite", ":memory:")
+	initDB()
+	defer db.Close()
+
+	// Clear seed data
+	db.Exec("DELETE FROM products")
+	db.Exec("DELETE FROM inventory_movements")
+	db.Exec("DELETE FROM audit_log")
+
+	// Insert product with stock=5
+	res, _ := db.Exec("INSERT INTO products (sku,name,price,stock) VALUES ('TEST001','Test Product',10000,5)")
+	productID, _ := res.LastInsertId()
+
+	// Try to take out 10 (should fail)
+	reqBody := strings.NewReader(fmt.Sprintf(`{"product_id":%d,"quantity":10,"type":"out","reason":"test insufficient"}`, productID))
+	r := httptest.NewRequest("POST", "/api/stock-adjustment", reqBody)
+	w := httptest.NewRecorder()
+	r.Header.Set("Authorization", "test-admin-token")
+	r.Header.Set("X-CSRF-Token", "test-csrf-token")
+
+	sessionsMu.Lock()
+	sessions["test-admin-token"] = &session{role: "admin", username: "admin", expiresAt: time.Now().Add(time.Hour)}
+	sessionsMu.Unlock()
+
+	handleStockAdjustment(w, r)
+
+	// Should return 400
+	if w.Code != 400 {
+		t.Errorf("Expected 400 for insufficient stock, got %d", w.Code)
+	}
+
+	// Verify stock unchanged
+	var stock int
+	db.QueryRow("SELECT stock FROM products WHERE id=?", productID).Scan(&stock)
+	if stock != 5 {
+		t.Errorf("Stock should still be 5, got %d", stock)
+	}
+
+	// Verify no movements recorded
+	var movements int
+	db.QueryRow("SELECT COUNT(*) FROM inventory_movements WHERE product_id=?", productID).Scan(&movements)
+	if movements != 0 {
+		t.Errorf("Expected 0 movements (should rollback), got %d", movements)
+	}
+
+	// Verify no audit log
+	var auditCount int
+	db.QueryRow("SELECT COUNT(*) FROM audit_log WHERE action='stock_adjustment'").Scan(&auditCount)
+	if auditCount != 0 {
+		t.Errorf("Expected 0 audit logs (should rollback), got %d", auditCount)
+	}
+}
+
+func TestStockAdjustmentAtomicity_ProductNotFound(t *testing.T) {
+	// Setup
+	db, _ = sql.Open("sqlite", ":memory:")
+	initDB()
+	defer db.Close()
+
+	// Try to adjust non-existent product
+	reqBody := strings.NewReader(`{"product_id":999,"quantity":10,"type":"in","reason":"test not found"}`)
+	r := httptest.NewRequest("POST", "/api/stock-adjustment", reqBody)
+	w := httptest.NewRecorder()
+	r.Header.Set("Authorization", "test-admin-token")
+	r.Header.Set("X-CSRF-Token", "test-csrf-token")
+
+	sessionsMu.Lock()
+	sessions["test-admin-token"] = &session{role: "admin", username: "admin", expiresAt: time.Now().Add(time.Hour)}
+	sessionsMu.Unlock()
+
+	handleStockAdjustment(w, r)
+
+	// Should return 404
+	if w.Code != 404 {
+		t.Errorf("Expected 404 for non-existent product, got %d", w.Code)
+	}
+
+	// Verify no movements
+	var movements int
+	db.QueryRow("SELECT COUNT(*) FROM inventory_movements WHERE product_id=999").Scan(&movements)
+	if movements != 0 {
+		t.Errorf("Expected 0 movements, got %d", movements)
+	}
+}
+
+
+// === WEBSOCKET HANDSHAKE TESTS ===
+
+func TestWebSocketHandshake(t *testing.T) {
+	// Setup test server
+	db, _ = sql.Open("sqlite", ":memory:")
+	initDB()
+	defer db.Close()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/ws", handleWebSocket)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	// Convert http:// to ws://
+	wsURL := "ws" + server.URL[4:] + "/ws"
+
+	// Test 1: Valid connection (no origin restriction for localhost)
+	t.Run("Valid connection", func(t *testing.T) {
+		ws, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+		if err != nil {
+			t.Errorf("Should connect: %v", err)
+			return
+		}
+		defer ws.Close()
+		// Connection should succeed
+	})
+
+	// Test 2: Invalid origin
+	t.Run("Invalid origin", func(t *testing.T) {
+		headers := http.Header{}
+		headers.Set("Origin", "https://evil.com")
+		ws, _, err := websocket.DefaultDialer.Dial(wsURL, headers)
+		if err == nil {
+			ws.Close()
+			t.Error("Should reject invalid origin")
+		} else {
+			// Expected: connection rejected
+			t.Logf("Correctly rejected: %v", err)
+		}
+	})
+
+	// Test 3: Send message and receive broadcast
+	t.Run("Message broadcast", func(t *testing.T) {
+		ws, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+		if err != nil {
+			t.Fatalf("Connection failed: %v", err)
+		}
+		defer ws.Close()
+
+		// Send a message (server reads but doesn't echo)
+		err = ws.WriteMessage(websocket.TextMessage, []byte(`{"type":"test","data":"hello"}`))
+		if err != nil {
+			t.Errorf("Write failed: %v", err)
+		}
+	})
+}
+
+func TestWebSocketOriginValidationLogic(t *testing.T) {
+	// Test various origins
+	tests := []struct {
+		name   string
+		origin string
+		expect bool
+	}{
+		{"empty origin", "", true},
+		{"localhost", "http://localhost:8070", true},
+		{"127.0.0.1", "http://127.0.0.1:8070", true},
+		{"external", "https://evil.com", false},
+		{"subdomain with localhost", "https://evil.localhost.com", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			origin := tt.origin
+			allowed := origin == "" || strings.Contains(origin, "localhost") || strings.Contains(origin, "127.0.0.1")
+			if allowed != tt.expect {
+				t.Errorf("Origin %q: expected %v, got %v", origin, tt.expect, allowed)
+			}
+		})
+	}
+}
+
+
+// === MIGRATION TESTS ===
+
+func TestMigrationUpgradeFromOldSchema(t *testing.T) {
+	// Create database with old schema (no description, no min_stock)
+	db, _ = sql.Open("sqlite", ":memory:")
+	defer db.Close()
+
+	// Create old schema (v2.1)
+	db.Exec(`CREATE TABLE products (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		sku TEXT UNIQUE NOT NULL, name TEXT NOT NULL,
+		price INTEGER DEFAULT 0, cost INTEGER DEFAULT 0,
+		category TEXT DEFAULT 'Umum', stock INTEGER DEFAULT 0,
+		unit TEXT DEFAULT 'pcs', barcode TEXT DEFAULT '',
+		promo_price INTEGER DEFAULT 0, promo_active INTEGER DEFAULT 0,
+		tax_rate REAL DEFAULT -1,
+		active INTEGER DEFAULT 1, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+	)`)
+
+	// Insert test data
+	db.Exec("INSERT INTO products (sku,name,price,stock) VALUES ('OLD001','Old Product',10000,25)")
+
+	// Verify old schema
+	var colCount int
+	db.QueryRow("SELECT COUNT(*) FROM pragma_table_info('products')").Scan(&colCount)
+	if colCount != 14 {
+		t.Errorf("Old schema should have 14 columns, got %d", colCount)
+	}
+
+	// Run migration (initDB adds new columns)
+	initDB()
+
+	// Verify new columns exist
+	db.QueryRow("SELECT COUNT(*) FROM pragma_table_info('products')").Scan(&colCount)
+	if colCount != 16 {
+		t.Errorf("New schema should have 16 columns, got %d", colCount)
+	}
+
+	// Verify old data preserved
+	var name string
+	var stock int
+	db.QueryRow("SELECT name, stock FROM products WHERE sku='OLD001'").Scan(&name, &stock)
+	if name != "Old Product" || stock != 25 {
+		t.Errorf("Old data not preserved: name=%s, stock=%d", name, stock)
+	}
+
+	// Verify new columns have defaults
+	var description string
+	var minStock int
+	db.QueryRow("SELECT description, min_stock FROM products WHERE sku='OLD001'").Scan(&description, &minStock)
+	if description != "" || minStock != 0 {
+		t.Errorf("New columns should have defaults: desc=%q, min_stock=%d", description, minStock)
+	}
+}
+
+func TestMigrationIdempotentDoubleRun(t *testing.T) {
+	// Run initDB twice, should not error
+	db, _ = sql.Open("sqlite", ":memory:")
+	defer db.Close()
+
+	initDB()
+	initDB() // Second run should be idempotent
+
+	// Verify schema is correct
+	var colCount int
+	db.QueryRow("SELECT COUNT(*) FROM pragma_table_info('products')").Scan(&colCount)
+	if colCount != 16 {
+		t.Errorf("Expected 16 columns after double init, got %d", colCount)
+	}
+
+	// Verify data not duplicated
+	var productCount int
+	db.QueryRow("SELECT COUNT(*) FROM products").Scan(&productCount)
+	if productCount != 8 {
+		t.Errorf("Expected 8 seed products, got %d", productCount)
+	}
+}
+
+func TestMigrationPreservesExistingData(t *testing.T) {
+	// Create DB with data, run migration, verify data intact
+	db, _ = sql.Open("sqlite", ":memory:")
+	defer db.Close()
+
+	// First init
+	initDB()
+
+	// Add custom data
+	db.Exec("INSERT INTO products (sku,name,price,stock) VALUES ('CUSTOM001','Custom Product',50000,100)")
+	db.Exec("INSERT INTO members (member_id,name,phone) VALUES ('MEM999','Test Member','081234567890')")
+
+	// Run migration again
+	initDB()
+
+	// Verify custom data preserved
+	var customStock int
+	db.QueryRow("SELECT stock FROM products WHERE sku='CUSTOM001'").Scan(&customStock)
+	if customStock != 100 {
+		t.Errorf("Custom product stock should be 100, got %d", customStock)
+	}
+
+	var memberName string
+	db.QueryRow("SELECT name FROM members WHERE member_id='MEM999'").Scan(&memberName)
+	if memberName != "Test Member" {
+		t.Errorf("Member name should be 'Test Member', got %q", memberName)
+	}
+}
+

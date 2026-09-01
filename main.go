@@ -409,7 +409,7 @@ func initDB() {
 	// Migration: add columns that may not exist in older DBs
 	db.Exec("ALTER TABLE users ADD COLUMN password_changed INTEGER DEFAULT 0")
 	db.Exec("ALTER TABLE products ADD COLUMN tax_rate REAL DEFAULT -1")
-db.Exec("ALTER TABLE products ADD COLUMN description TEXT DEFAULT '')")
+db.Exec("ALTER TABLE products ADD COLUMN description TEXT DEFAULT ''")
 	db.Exec("ALTER TABLE products ADD COLUMN min_stock INTEGER DEFAULT 0")
 
 	db.Exec(`CREATE TABLE IF NOT EXISTS audit_log (
