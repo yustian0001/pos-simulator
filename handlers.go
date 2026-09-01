@@ -255,8 +255,8 @@ func handleGetProducts(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		if isAdmin {
 			var p Product
-			rows.Scan(&p.ID, &p.SKU, &p.Name, &p.Price, &p.Cost, &p.Category, &p.Stock, &p.Unit, &p.Barcode, &p.PromoPrice, &p.PromoActive, &p.TaxRate, &p.Active)
-			products = append(products, map[string]interface{}{"id": p.ID, "sku": p.SKU, "name": p.Name, "price": p.Price, "cost": p.Cost, "category": p.Category, "stock": p.Stock, "unit": p.Unit, "barcode": p.Barcode, "promo_price": p.PromoPrice, "promo_active": p.PromoActive, "tax_rate": p.TaxRate, "active": p.Active})
+			rows.Scan(&p.ID, &p.SKU, &p.Name, &p.Description, &p.Price, &p.Cost, &p.Category, &p.Stock, &p.MinStock, &p.Unit, &p.Barcode, &p.PromoPrice, &p.PromoActive, &p.TaxRate, &p.Active)
+			products = append(products, map[string]interface{}{"id": p.ID, "sku": p.SKU, "name": p.Name, "description": p.Description, "price": p.Price, "cost": p.Cost, "category": p.Category, "stock": p.Stock, "min_stock": p.MinStock, "unit": p.Unit, "barcode": p.Barcode, "promo_price": p.PromoPrice, "promo_active": p.PromoActive, "tax_rate": p.TaxRate, "active": p.Active})
 		} else {
 			var id, price, stock, minStock, promoPrice, promoActive, active int
 			var sku, name, description, category, unit, barcode string

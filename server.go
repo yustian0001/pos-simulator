@@ -120,7 +120,13 @@ func main() {
 			handleAddMember(w, r)
 		}
 	}))
-	mux.HandleFunc("/api/members/", handleGetMember)
+	mux.HandleFunc("/api/members/", func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/transactions") {
+			handleMemberTransactions(w, r)
+		} else {
+			handleGetMember(w, r)
+		}
+	})
 	mux.HandleFunc("/api/checkout", requireCSRF(handleCheckout))
 	mux.HandleFunc("/api/hold", requireCSRF(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "GET" {
@@ -163,13 +169,6 @@ func main() {
 	mux.HandleFunc("/api/restore", adminOnly(handleRestore))
 	mux.HandleFunc("/api/ai/webhook", handleAIWebhook)
 	mux.HandleFunc("/api/display-token", handleGenerateDisplayToken)
-	mux.HandleFunc("/api/members/", func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasSuffix(r.URL.Path, "/transactions") {
-			handleMemberTransactions(w, r)
-		} else {
-			handleGetMember(w, r)
-		}
-	})
 	mux.HandleFunc("/api/stock-adjustment", adminOnly(handleStockAdjustment))
 	mux.HandleFunc("/api/ai/restock-candidates", adminOnly(handleRestockCandidates))
 	mux.HandleFunc("/api/ai/report", adminOnly(handleAIReport))
