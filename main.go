@@ -90,10 +90,12 @@ type Product struct {
 	ID          int     `json:"id"`
 	SKU         string  `json:"sku"`
 	Name        string  `json:"name"`
+	Description string  `json:"description,omitempty"`
 	Price       int     `json:"price"`
 	Cost        int     `json:"cost,omitempty"`
 	Category    string  `json:"category"`
 	Stock       int     `json:"stock"`
+	MinStock    int     `json:"min_stock,omitempty"`
 	Unit        string  `json:"unit"`
 	Barcode     string  `json:"barcode"`
 	PromoPrice  int     `json:"promo_price"`
@@ -180,22 +182,24 @@ type User struct {
 }
 
 type CartItemReq struct {
-	ProductID int    `json:"product_id"`
-	Qty       int    `json:"qty"`
-	Notes     string `json:"notes"`
-	Discount  int    `json:"discount"`
+	ProductID   int    `json:"product_id"`
+	Qty         int    `json:"qty"`
+	Notes       string `json:"notes"`
+	Discount    int    `json:"discount"`
+	DiscountType string `json:"discount_type,omitempty"` // "nominal" or "percent"
 }
 
 type CheckoutReq struct {
-	Items        []CartItemReq `json:"items"`
-	Payment      string        `json:"payment"`
-	Discount     int           `json:"discount"`
-	AmountPaid   int           `json:"amount_paid"`
-	CustomerName string        `json:"customer_name"`
-	MemberID     string        `json:"member_id"`
-	Cashier      string        `json:"cashier"`
-	ShiftID      int           `json:"shift_id"`
-	Notes        string        `json:"notes"`
+	Items         []CartItemReq `json:"items"`
+	Payment       string        `json:"payment"`
+	Discount      int           `json:"discount"`
+	DiscountType  string        `json:"discount_type,omitempty"` // "nominal" or "percent"
+	AmountPaid    int           `json:"amount_paid"`
+	CustomerName  string        `json:"customer_name"`
+	MemberID      string        `json:"member_id"`
+	Cashier       string        `json:"cashier"`
+	ShiftID       int           `json:"shift_id"`
+	Notes         string        `json:"notes"`
 }
 
 type HoldReq struct {
@@ -368,6 +372,8 @@ func initDB() {
 	// Migration: add columns that may not exist in older DBs
 	db.Exec("ALTER TABLE users ADD COLUMN password_changed INTEGER DEFAULT 0")
 	db.Exec("ALTER TABLE products ADD COLUMN tax_rate REAL DEFAULT -1")
+db.Exec("ALTER TABLE products ADD COLUMN description TEXT DEFAULT '')")
+	db.Exec("ALTER TABLE products ADD COLUMN min_stock INTEGER DEFAULT 0")
 
 	db.Exec(`CREATE TABLE IF NOT EXISTS audit_log (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,

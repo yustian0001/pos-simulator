@@ -235,6 +235,7 @@ input,select,button{font-family:inherit}
   <div class="cart-summary">
     <div class="summary-row"><span class="label">Subtotal</span><span id="subtotal">Rp 0</span></div>
     <div class="summary-row"><span class="label" id="ppn-label">PPN 11%</span><span id="tax-display">Rp 0</span></div>
+    <div class="summary-row" style="display:flex;align-items:center;gap:8px"><span class="label" style="flex:1">Diskon</span><input id="discount-input" type="number" value="0" min="0" style="width:80px;border:1px solid #d1d5db;border-radius:6px;padding:4px 8px;font-size:12px;text-align:right" onchange="updateTotal()"><select id="discount-type" style="border:1px solid #d1d5db;border-radius:6px;padding:4px;font-size:11px" onchange="updateTotal()"><option value="nominal">Rp</option><option value="percent">%</option></select></div>
     <div class="summary-row total"><span>TOTAL</span><span class="value" id="cart-total">Rp 0</span></div>
   </div>
   <div class="payment-btns">
@@ -390,7 +391,7 @@ async function loadProducts(search){
   var cats={"Makanan":"🍜","Minuman":"🥤","Snack":"🍿","Lainnya":"📦"};
   el.innerHTML=products.map(function(p){
     var price=p.promo_active&&p.promo_price>0?p.promo_price:p.price;
-    var stockClass=p.stock<10?"low":"";
+    var stockClass=p.min_stock>0&&p.stock<=p.min_stock?"low":p.stock<10?"low":"";
     var promoHtml=p.promo_active&&p.promo_price>0?'<div class="product-promo">Promo!</div>':'';
     return '<div class="product-card" data-id="'+p.id+'" data-name="'+esc(p.name).replace(/"/g,'&quot;')+'" data-price="'+price+'" data-stock="'+p.stock+'" onclick="addFromCard(this)"><div class="product-emoji">'+(cats[p.category]||"📦")+'</div><div class="product-name">'+esc(p.name)+'</div><div class="product-price">Rp '+price.toLocaleString("id-ID")+'</div><div class="product-stock '+stockClass+'">Stok: '+p.stock+'</div>'+promoHtml+'</div>';
   }).join("");
@@ -416,7 +417,7 @@ function addToCart(id,name,price,stock){
 }
 function removeFromCart(i){cart.splice(i,1);renderCart();broadcastCart()}
 function changeQty(i,d){cart[i].qty+=d;if(cart[i].qty<=0)cart.splice(i,1);renderCart();broadcastCart()}
-function clearCart(){cart=[];document.getElementById("amount-paid").value="";renderCart();broadcastCart()}
+function clearCart(){cart=[];document.getElementById("amount-paid").value="";document.getElementById("discount-input").value="0";renderCart();broadcastCart()}
 function renderCart(){
   var el=document.getElementById("cart-items");
   if(!cart.length){el.innerHTML='<div class="cart-empty"><div class="icon">🛒</div><p>Keranjang kosong</p></div>';updateTotal();return}
@@ -432,8 +433,14 @@ function renderCart(){
 // TOTAL
 function updateTotal(){
   var subtotal=cart.reduce(function(s,i){return s+i.price*i.qty},0);
-  var tax=Math.round(subtotal*ppnRate/100);
-  var grand=subtotal+tax;
+  var discountInput=parseInt(document.getElementById("discount-input").value)||0;
+  var discountType=document.getElementById("discount-type").value;
+  var discount=0;
+  if(discountType==="percent"){discount=Math.round(subtotal*discountInput/100)}
+  else{discount=discountInput}
+  var tax=Math.round((subtotal-discount)*ppnRate/100);
+  var grand=subtotal-discount+tax;
+  if(grand<0)grand=0;
   document.getElementById("subtotal").textContent="Rp "+subtotal.toLocaleString("id-ID");
   document.getElementById("tax-display").textContent="Rp "+tax.toLocaleString("id-ID");
   document.getElementById("cart-total").textContent="Rp "+grand.toLocaleString("id-ID");
@@ -468,8 +475,14 @@ function closeQrisModal(){document.getElementById("qris-modal").style.display="n
 async function checkout(){
   if(!cart.length)return;
   var paid=payment==="CASH"?(parseInt(document.getElementById("amount-paid").value)||0):0;
+  var discountInput=parseInt(document.getElementById("discount-input").value)||0;
+  var discountType=document.getElementById("discount-type").value;
+  var subtotal=cart.reduce(function(s,i){return s+i.price*i.qty},0);
+  var discount=0;
+  if(discountType==="percent"){discount=Math.round(subtotal*discountInput/100)}
+  else{discount=discountInput}
   var items=cart.map(function(i){return{product_id:i.product_id,qty:i.qty,discount:0,notes:""}});
-  var r=await fetch(API+"/api/checkout",{method:"POST",headers:{"Content-Type":"application/json","X-CSRF-Token":csrfToken},body:JSON.stringify({items:items,payment:payment,discount:0,amount_paid:paid,cashier:currentUser,shift_id:currentShiftId,member_id:activeMember?activeMember.member_id:""})});
+  var r=await fetch(API+"/api/checkout",{method:"POST",headers:{"Content-Type":"application/json","X-CSRF-Token":csrfToken},body:JSON.stringify({items:items,payment:payment,discount:discount,discount_type:discountType,amount_paid:paid,cashier:currentUser,shift_id:currentShiftId,member_id:activeMember?activeMember.member_id:""})});
   var tx=await r.json();
   if(tx.id){
     lastTxReceipt=tx;

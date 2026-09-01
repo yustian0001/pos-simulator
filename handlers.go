@@ -230,9 +230,9 @@ func handleGetUsers(w http.ResponseWriter, r *http.Request) {
 // === Products ===
 func handleGetProducts(w http.ResponseWriter, r *http.Request) {
 	isAdmin := r.URL.Query().Get("admin") == "1"
-	q := "SELECT id,sku,name,price,category,stock,unit,barcode,promo_price,promo_active,tax_rate,active FROM products WHERE active=1"
+	q := "SELECT id,sku,name,description,price,category,stock,min_stock,unit,barcode,promo_price,promo_active,tax_rate,active FROM products WHERE active=1"
 	if isAdmin {
-		q = "SELECT id,sku,name,price,cost,category,stock,unit,barcode,promo_price,promo_active,tax_rate,active FROM products WHERE active=1"
+		q = "SELECT id,sku,name,description,price,cost,category,stock,min_stock,unit,barcode,promo_price,promo_active,tax_rate,active FROM products WHERE active=1"
 	}
 	var args []interface{}
 	if cat := r.URL.Query().Get("category"); cat != "" && cat != "Semua" {
@@ -258,11 +258,11 @@ func handleGetProducts(w http.ResponseWriter, r *http.Request) {
 			rows.Scan(&p.ID, &p.SKU, &p.Name, &p.Price, &p.Cost, &p.Category, &p.Stock, &p.Unit, &p.Barcode, &p.PromoPrice, &p.PromoActive, &p.TaxRate, &p.Active)
 			products = append(products, map[string]interface{}{"id": p.ID, "sku": p.SKU, "name": p.Name, "price": p.Price, "cost": p.Cost, "category": p.Category, "stock": p.Stock, "unit": p.Unit, "barcode": p.Barcode, "promo_price": p.PromoPrice, "promo_active": p.PromoActive, "tax_rate": p.TaxRate, "active": p.Active})
 		} else {
-			var id, price, stock, promoPrice, promoActive, active int
-			var sku, name, category, unit, barcode string
+			var id, price, stock, minStock, promoPrice, promoActive, active int
+			var sku, name, description, category, unit, barcode string
 			var taxRate float64
-			rows.Scan(&id, &sku, &name, &price, &category, &stock, &unit, &barcode, &promoPrice, &promoActive, &taxRate, &active)
-			products = append(products, map[string]interface{}{"id": id, "sku": sku, "name": name, "price": price, "category": category, "stock": stock, "unit": unit, "barcode": barcode, "promo_price": promoPrice, "promo_active": promoActive, "tax_rate": taxRate, "active": active})
+			rows.Scan(&id, &sku, &name, &description, &price, &category, &stock, &minStock, &unit, &barcode, &promoPrice, &promoActive, &taxRate, &active)
+			products = append(products, map[string]interface{}{"id": id, "sku": sku, "name": name, "description": description, "price": price, "category": category, "stock": stock, "min_stock": minStock, "unit": unit, "barcode": barcode, "promo_price": promoPrice, "promo_active": promoActive, "tax_rate": taxRate, "active": active})
 		}
 	}
 	if products == nil {
@@ -302,8 +302,8 @@ func handleAddProduct(w http.ResponseWriter, r *http.Request) {
 		jsonResponse(w, map[string]string{"error": "Nama dan SKU wajib diisi"}, 400)
 		return
 	}
-	_, err := db.Exec("INSERT INTO products (sku,name,price,cost,category,stock,unit,barcode,tax_rate) VALUES (?,?,?,?,?,?,?,?,?)",
-		p.SKU, p.Name, p.Price, p.Cost, p.Category, p.Stock, p.Unit, p.Barcode, p.TaxRate)
+	_, err := db.Exec("INSERT INTO products (sku,name,description,price,cost,category,stock,min_stock,unit,barcode,tax_rate) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+		p.SKU, p.Name, p.Description, p.Price, p.Cost, p.Category, p.Stock, p.MinStock, p.Unit, p.Barcode, p.TaxRate)
 	if err != nil {
 		logError("handleAddProduct", err)
 		jsonResponse(w, map[string]string{"error": "Gagal tambah produk"}, 500)
@@ -323,8 +323,8 @@ func handleUpdateProduct(w http.ResponseWriter, r *http.Request) {
 		jsonResponse(w, map[string]string{"error": "Invalid request"}, 400)
 		return
 	}
-	_, err := db.Exec("UPDATE products SET name=?,price=?,cost=?,category=?,stock=?,unit=?,barcode=?,promo_price=?,promo_active=?,tax_rate=? WHERE id=?",
-		p.Name, p.Price, p.Cost, p.Category, p.Stock, p.Unit, p.Barcode, p.PromoPrice, p.PromoActive, p.TaxRate, id)
+	_, err := db.Exec("UPDATE products SET name=?,description=?,price=?,cost=?,category=?,stock=?,min_stock=?,unit=?,barcode=?,promo_price=?,promo_active=?,tax_rate=? WHERE id=?",
+		p.Name, p.Description, p.Price, p.Cost, p.Category, p.Stock, p.MinStock, p.Unit, p.Barcode, p.PromoPrice, p.PromoActive, p.TaxRate, id)
 	if err != nil {
 		logError("handleUpdateProduct", err)
 		jsonResponse(w, map[string]string{"error": "Gagal update produk"}, 500)
@@ -700,7 +700,13 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 		if p.PromoActive == 1 && p.PromoPrice > 0 {
 			effectivePrice = p.PromoPrice
 		}
-		sub := (effectivePrice - ci.Discount) * ci.Qty
+		var itemDiscount int
+		if ci.DiscountType == "percent" {
+			itemDiscount = int(math.Round(float64(effectivePrice*ci.Qty) * float64(ci.Discount) / 100))
+		} else {
+			itemDiscount = ci.Discount * ci.Qty
+		}
+		sub := effectivePrice*ci.Qty - itemDiscount
 		total += sub
 		items = append(items, checkoutItem{Name: p.Name, Qty: ci.Qty, Price: effectivePrice, Discount: ci.Discount, Subtotal: sub, TaxRate: p.TaxRate, Notes: ci.Notes})
 		sqlTx.Exec("INSERT INTO tx_items (tx_id,product_id,name,qty,price,discount,subtotal,notes) VALUES (?,?,?,?,?,?,?,?)",
@@ -716,6 +722,9 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 	}
 
 	discount := req.Discount
+	if req.DiscountType == "percent" {
+		discount = int(math.Round(float64(total) * float64(req.Discount) / 100))
+	}
 	// Per-product tax calculation
 	var globalTaxRate float64 = 11
 	var ppnStr string
@@ -1715,6 +1724,99 @@ func handleChangePassword(w http.ResponseWriter, r *http.Request) {
 	jsonResponse(w, map[string]interface{}{"status": "ok", "message": "Password berhasil diubah"}, 200)
 }
 
+
+// === MEMBER TRANSACTION HISTORY ===
+func handleMemberTransactions(w http.ResponseWriter, r *http.Request) {
+	parts := strings.Split(r.URL.Path, "/")
+	memberID := parts[len(parts)-2]
+
+	rows, err := db.Query(`SELECT t.tx_id, t.total, t.discount, t.tax, t.grand_total, t.payment, t.created_at
+		FROM transactions t
+		JOIN members m ON t.member_id = m.id
+		WHERE m.member_id = ? AND t.status = 'completed'
+		ORDER BY t.created_at DESC LIMIT 50`, memberID)
+	if err != nil {
+		logError("handleMemberTransactions", err)
+		jsonResponse(w, map[string]string{"error": "Database error"}, 500)
+		return
+	}
+	defer rows.Close()
+	var txs []map[string]interface{}
+	for rows.Next() {
+		var txID, payment, createdAt string
+		var total, discount, tax, grandTotal int
+		rows.Scan(&txID, &total, &discount, &tax, &grandTotal, &payment, &createdAt)
+		txs = append(txs, map[string]interface{}{
+			"tx_id": txID, "total": total, "discount": discount,
+			"tax": tax, "grand_total": grandTotal,
+			"payment": payment, "created_at": createdAt,
+		})
+	}
+	if txs == nil {
+		txs = []map[string]interface{}{}
+	}
+	jsonResponse(w, txs, 200)
+}
+
+// === STOCK ADJUSTMENT ===
+func handleStockAdjustment(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		jsonResponse(w, map[string]string{"error": "POST only"}, 405)
+		return
+	}
+	var req struct {
+		ProductID  int    `json:"product_id"`
+		Quantity   int    `json:"quantity"`
+		Type       string `json:"type"` // "in", "out", "adjust"
+		Reason     string `json:"reason"`
+		ShiftID    int    `json:"shift_id"`
+	}
+	if err := decodeJSON(w, r, &req); err != nil {
+		jsonResponse(w, map[string]string{"error": "Invalid request"}, 400)
+		return
+	}
+	if req.ProductID == 0 || req.Quantity < 0 || req.Reason == "" {
+		jsonResponse(w, map[string]string{"error": "product_id, quantity, and reason required"}, 400)
+		return
+	}
+
+	var currentStock int
+	err := db.QueryRow("SELECT stock FROM products WHERE id=? AND active=1", req.ProductID).Scan(&currentStock)
+	if err != nil {
+		jsonResponse(w, map[string]string{"error": "Product not found"}, 404)
+		return
+	}
+
+	var newStock int
+	var movementType string
+	switch req.Type {
+	case "in":
+		newStock = currentStock + req.Quantity
+		movementType = "stock_in"
+	case "out":
+		if currentStock < req.Quantity {
+			jsonResponse(w, map[string]string{"error": "Insufficient stock"}, 400)
+			return
+		}
+		newStock = currentStock - req.Quantity
+		movementType = "stock_out"
+	case "adjust":
+		newStock = req.Quantity
+		movementType = "adjustment"
+	default:
+		jsonResponse(w, map[string]string{"error": "type must be: in, out, adjust"}, 400)
+		return
+	}
+
+	db.Exec("UPDATE products SET stock=? WHERE id=?", newStock, req.ProductID)
+	db.Exec("INSERT INTO inventory_movements (product_id,movement_type,quantity,stock_before,stock_after,reference_type,source,reason,user) VALUES (?,?,?,?,?,?,?,?,?)",
+		req.ProductID, movementType, req.Quantity, currentStock, newStock, "manual", "admin", req.Reason, "admin")
+
+	auditLog("stock_adjustment", "product", fmt.Sprintf("%d", req.ProductID), "admin",
+		fmt.Sprintf("%s %d (before=%d after=%d) reason=%s", movementType, req.Quantity, currentStock, newStock, req.Reason))
+
+	jsonResponse(w, map[string]interface{}{"status": "ok", "product_id": req.ProductID, "before": currentStock, "after": newStock, "type": movementType}, 200)
+}
 
 // === DISPLAY TOKEN ===
 var displayTokens = struct {

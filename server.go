@@ -163,6 +163,14 @@ func main() {
 	mux.HandleFunc("/api/restore", adminOnly(handleRestore))
 	mux.HandleFunc("/api/ai/webhook", handleAIWebhook)
 	mux.HandleFunc("/api/display-token", handleGenerateDisplayToken)
+	mux.HandleFunc("/api/members/", func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/transactions") {
+			handleMemberTransactions(w, r)
+		} else {
+			handleGetMember(w, r)
+		}
+	})
+	mux.HandleFunc("/api/stock-adjustment", adminOnly(handleStockAdjustment))
 	mux.HandleFunc("/api/ai/restock-candidates", adminOnly(handleRestockCandidates))
 	mux.HandleFunc("/api/ai/report", adminOnly(handleAIReport))
 	mux.HandleFunc("/api/ai/settings", func(w http.ResponseWriter, r *http.Request) {
