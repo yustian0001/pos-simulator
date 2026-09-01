@@ -85,7 +85,9 @@ func main() {
 		}
 	})
 	mux.HandleFunc("/api/products/", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == "PUT" {
+		if strings.HasSuffix(r.URL.Path, "/movements") {
+			handleProductMovements(w, r)
+		} else if r.Method == "PUT" {
 			adminOnly(handleUpdateProduct)(w, r)
 		} else if r.Method == "DELETE" {
 			adminOnly(handleDeleteProduct)(w, r)
@@ -169,7 +171,7 @@ func main() {
 	mux.HandleFunc("/api/restore", adminOnly(handleRestore))
 	mux.HandleFunc("/api/ai/webhook", handleAIWebhook)
 	mux.HandleFunc("/api/display-token", handleGenerateDisplayToken)
-	mux.HandleFunc("/api/stock-adjustment", adminOnly(handleStockAdjustment))
+	mux.HandleFunc("/api/stock-adjustment", requireCSRF(adminOnly(handleStockAdjustment)))
 	mux.HandleFunc("/api/ai/restock-candidates", adminOnly(handleRestockCandidates))
 	mux.HandleFunc("/api/ai/report", adminOnly(handleAIReport))
 	mux.HandleFunc("/api/ai/settings", func(w http.ResponseWriter, r *http.Request) {

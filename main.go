@@ -219,11 +219,11 @@ type User struct {
 }
 
 type CartItemReq struct {
-	ProductID   int    `json:"product_id"`
-	Qty         int    `json:"qty"`
-	Notes       string `json:"notes"`
-	Discount    int    `json:"discount"`
-	DiscountType string `json:"discount_type,omitempty"` // "nominal" or "percent"
+	ProductID    int     `json:"product_id"`
+	Qty          int     `json:"qty"`
+	Notes        string  `json:"notes"`
+	Discount     float64 `json:"discount"`
+	DiscountType string  `json:"discount_type,omitempty"` // "nominal" or "percent"
 }
 
 type CheckoutReq struct {

@@ -681,7 +681,7 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 		Name     string  `json:"name"`
 		Qty      int     `json:"qty"`
 		Price    int     `json:"price"`
-		Discount int     `json:"discount"`
+		Discount float64 `json:"discount"`
 		Subtotal int     `json:"subtotal"`
 		TaxRate  float64 `json:"tax_rate"`
 		Notes    string  `json:"notes"`
@@ -723,13 +723,16 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 		}
 		var itemDiscount int
 		if ci.DiscountType == "percent" {
-			itemDiscount = int(math.Round(float64(effectivePrice*ci.Qty) * float64(ci.Discount) / 100))
+			// Round to nearest integer for Rupiah
+			itemDiscount = int(math.Round(float64(effectivePrice*ci.Qty) * ci.Discount / 100.0))
 		} else {
-			itemDiscount = ci.Discount * ci.Qty
+			itemDiscount = int(ci.Discount) * ci.Qty
 		}
+		if itemDiscount < 0 { itemDiscount = 0 }
 		sub := effectivePrice*ci.Qty - itemDiscount
+		if sub < 0 { sub = 0 }
 		total += sub
-		items = append(items, checkoutItem{Name: p.Name, Qty: ci.Qty, Price: effectivePrice, Discount: ci.Discount, Subtotal: sub, TaxRate: p.TaxRate, Notes: ci.Notes})
+		items = append(items, checkoutItem{Name: p.Name, Qty: ci.Qty, Price: effectivePrice, Discount: float64(itemDiscount), Subtotal: sub, TaxRate: p.TaxRate, Notes: ci.Notes})
 		sqlTx.Exec("INSERT INTO tx_items (tx_id,product_id,name,qty,price,discount,subtotal,notes) VALUES (?,?,?,?,?,?,?,?)",
 			txID, ci.ProductID, p.Name, ci.Qty, effectivePrice, ci.Discount, sub, ci.Notes)
 		sqlTx.Exec("UPDATE products SET stock=stock-? WHERE id=? AND stock>=?", ci.Qty, ci.ProductID, ci.Qty)
@@ -753,7 +756,7 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 			jsonResponse(w, map[string]string{"error": "Diskon persen tidak boleh lebih dari 100%"}, 400)
 			return
 		}
-		discount = int(math.Round(float64(total) * float64(req.Discount) / 100))
+		discount = int(math.Round(float64(total) * float64(req.Discount) / 100.0))
 	}
 	// Per-product tax calculation
 	var globalTaxRate float64 = 11
@@ -1859,6 +1862,43 @@ func handleStockAdjustment(w http.ResponseWriter, r *http.Request) {
 		fmt.Sprintf("%s %d (before=%d after=%d) reason=%s", movementType, req.Quantity, currentStock, newStock, req.Reason))
 
 	jsonResponse(w, map[string]interface{}{"status": "ok", "product_id": req.ProductID, "before": currentStock, "after": newStock, "type": movementType}, 200)
+}
+
+// === INVENTORY MOVEMENTS ===
+func handleProductMovements(w http.ResponseWriter, r *http.Request) {
+	parts := strings.Split(r.URL.Path, "/")
+	// /api/products/{id}/movements
+	if len(parts) < 5 {
+		jsonResponse(w, map[string]string{"error": "Invalid path"}, 400)
+		return
+	}
+	productID := parts[3] // /api/products/{id}/movements -> parts[3] is the id
+
+	rows, err := db.Query(`SELECT id, product_id, movement_type, quantity, stock_before, stock_after, 
+		reference_type, reference_id, source, reason, user, created_at 
+		FROM inventory_movements WHERE product_id=? ORDER BY created_at DESC LIMIT 50`, productID)
+	if err != nil {
+		logError("handleProductMovements", err)
+		jsonResponse(w, map[string]string{"error": "Database error"}, 500)
+		return
+	}
+	defer rows.Close()
+	var movements []map[string]interface{}
+	for rows.Next() {
+		var id, pid, qty, stockBefore, stockAfter int
+		var movementType, refType, refID, source, reason, user, createdAt string
+		rows.Scan(&id, &pid, &movementType, &qty, &stockBefore, &stockAfter, &refType, &refID, &source, &reason, &user, &createdAt)
+		movements = append(movements, map[string]interface{}{
+			"id": id, "product_id": pid, "movement_type": movementType,
+			"quantity": qty, "stock_before": stockBefore, "stock_after": stockAfter,
+			"reference_type": refType, "reference_id": refID, "source": source,
+			"reason": reason, "user": user, "created_at": createdAt,
+		})
+	}
+	if movements == nil {
+		movements = []map[string]interface{}{}
+	}
+	jsonResponse(w, movements, 200)
 }
 
 // === DISPLAY TOKEN ===
