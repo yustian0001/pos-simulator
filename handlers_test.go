@@ -103,9 +103,9 @@ func TestCSRFToken(t *testing.T) {
 	if !validateCSRF(token) {
 		t.Error("CSRF token should be valid")
 	}
-	// Same token should be consumed (one-time use)
-	if validateCSRF(token) {
-		t.Error("CSRF token should be consumed after first use")
+	// Session-level: token is reusable (not consumed after use)
+	if !validateCSRF(token) {
+		t.Error("CSRF token should be reusable within session")
 	}
 }
 

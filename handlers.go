@@ -147,9 +147,8 @@ func validateCSRF(token string) bool {
 	if !exists || time.Now().After(expiry) {
 		return false
 	}
-	csrfTokens.Lock()
-	delete(csrfTokens.data, token)
-	csrfTokens.Unlock()
+	// Token is session-level — do NOT delete after use
+	// Token expires via expiry timestamp, cleaned up by cleanupSessions()
 	return true
 }
 
