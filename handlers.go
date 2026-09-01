@@ -1854,12 +1854,44 @@ func handleStockAdjustment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	db.Exec("UPDATE products SET stock=? WHERE id=?", newStock, req.ProductID)
-	db.Exec("INSERT INTO inventory_movements (product_id,movement_type,quantity,stock_before,stock_after,reference_type,source,reason,user) VALUES (?,?,?,?,?,?,?,?,?)",
-		req.ProductID, movementType, req.Quantity, currentStock, newStock, "manual", "admin", req.Reason, "admin")
+	// Atomic transaction: stock update + inventory movement + audit log
+	tx, err := db.BeginTx(context.Background(), nil)
+	if err != nil {
+		logError("handleStockAdjustment begin", err)
+		jsonResponse(w, map[string]string{"error": "Database error"}, 500)
+		return
+	}
+	defer tx.Rollback()
 
-	auditLog("stock_adjustment", "product", fmt.Sprintf("%d", req.ProductID), "admin",
+	_, err = tx.Exec("UPDATE products SET stock=? WHERE id=?", newStock, req.ProductID)
+	if err != nil {
+		logError("handleStockAdjustment update stock", err)
+		jsonResponse(w, map[string]string{"error": "Failed to update stock"}, 500)
+		return
+	}
+
+	_, err = tx.Exec("INSERT INTO inventory_movements (product_id,movement_type,quantity,stock_before,stock_after,reference_type,source,reason,user) VALUES (?,?,?,?,?,?,?,?,?)",
+		req.ProductID, movementType, req.Quantity, currentStock, newStock, "manual", "admin", req.Reason, "admin")
+	if err != nil {
+		logError("handleStockAdjustment insert movement", err)
+		jsonResponse(w, map[string]string{"error": "Failed to record movement"}, 500)
+		return
+	}
+
+	_, err = tx.Exec("INSERT INTO audit_log (action,entity,entity_id,user,details) VALUES (?,?,?,?,?)",
+		"stock_adjustment", "product", fmt.Sprintf("%d", req.ProductID), "admin",
 		fmt.Sprintf("%s %d (before=%d after=%d) reason=%s", movementType, req.Quantity, currentStock, newStock, req.Reason))
+	if err != nil {
+		logError("handleStockAdjustment audit log", err)
+		jsonResponse(w, map[string]string{"error": "Failed to log audit"}, 500)
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		logError("handleStockAdjustment commit", err)
+		jsonResponse(w, map[string]string{"error": "Failed to commit transaction"}, 500)
+		return
+	}
 
 	jsonResponse(w, map[string]interface{}{"status": "ok", "product_id": req.ProductID, "before": currentStock, "after": newStock, "type": movementType}, 200)
 }
