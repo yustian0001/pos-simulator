@@ -239,7 +239,7 @@ tr:hover{background:#f8fafc}
 // Auth
 if(!sessionStorage.getItem("token"))location.href="/admin-login";
 document.getElementById("admin-name").textContent=sessionStorage.getItem("display_name")||"";
-function authFetch(url,opts){opts=opts||{};opts.headers=opts.headers||{};opts.headers["Authorization"]=sessionStorage.getItem("token")||"";return fetch(url,opts)}
+var csrfToken="";function authFetch(url,opts){opts=opts||{};opts.headers=opts.headers||{};opts.headers["Authorization"]=sessionStorage.getItem("token")||"";opts.headers["X-CSRF-Token"]=csrfToken;return fetch(url,opts)}
 async function logout(){await authFetch("/api/logout",{method:"POST"});sessionStorage.clear();location.href="/admin-login"}
 
 // Tabs
