@@ -28,3 +28,6 @@ Thumbs.db
 # Test artifacts and coverage
 coverage.out
 *.test
+
+# git-filter-repo backup (contains old history with revoked tokens)
+.git/filter-repo/
