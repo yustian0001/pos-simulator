@@ -5,10 +5,12 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -252,12 +254,41 @@ func getDataDir() string {
 	return filepath.Dir(exe)
 }
 
+func loadEnv() {
+	if flag.Lookup("test.v") != nil {
+		return
+	}
+	searchPaths := []string{
+		filepath.Join(getDataDir(), ".env"),
+		".env",
+	}
+	for _, p := range searchPaths {
+		data, err := os.ReadFile(p)
+		if err == nil {
+			for _, line := range strings.Split(string(data), "\n") {
+				line = strings.TrimSpace(line)
+				if line == "" || strings.HasPrefix(line, "#") {
+					continue
+				}
+				parts := strings.SplitN(line, "=", 2)
+				if len(parts) == 2 {
+					k := strings.TrimSpace(parts[0])
+					v := strings.Trim(strings.TrimSpace(parts[1]), `"'`)
+					if os.Getenv(k) == "" {
+						os.Setenv(k, v)
+					}
+				}
+			}
+			break
+		}
+	}
+}
+
 func initDB() {
-	// Read config from env vars ONLY (no embedded secrets)
+	loadEnv()
+	// Read config from env vars
 	tursoURL := os.Getenv("TURSO_DATABASE_URL")
 	tursoToken := os.Getenv("TURSO_AUTH_TOKEN")
-	// Environment variables ONLY - no embedded or file config
-	// Set TURSO_DATABASE_URL and TURSO_AUTH_TOKEN as env vars
 	if v := os.Getenv("TURSO_DATABASE_URL"); v != "" {
 		tursoURL = v
 	}
@@ -411,6 +442,7 @@ func initDB() {
 	db.Exec("ALTER TABLE products ADD COLUMN tax_rate REAL DEFAULT -1")
 db.Exec("ALTER TABLE products ADD COLUMN description TEXT DEFAULT ''")
 	db.Exec("ALTER TABLE products ADD COLUMN min_stock INTEGER DEFAULT 0")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_products_barcode ON products(barcode)")
 
 	db.Exec(`CREATE TABLE IF NOT EXISTS audit_log (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,

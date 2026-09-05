@@ -596,7 +596,12 @@ func handleCashIn(w http.ResponseWriter, r *http.Request) {
 
 func handleGetCashLog(w http.ResponseWriter, r *http.Request) {
 	id := parseID(r.URL.Path)
-	rows, _ := db.Query("SELECT id,shift_id,type,amount,description,created_at FROM cash_log WHERE shift_id=? ORDER BY created_at", id)
+	rows, err := db.Query("SELECT id,shift_id,type,amount,description,created_at FROM cash_log WHERE shift_id=? ORDER BY created_at", id)
+	if err != nil {
+		logError("handleGetCashLog", err)
+		jsonResponse(w, []CashLog{}, 200)
+		return
+	}
 	defer rows.Close()
 	var logs []CashLog
 	for rows.Next() {
@@ -851,7 +856,12 @@ func handleHold(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleGetHolds(w http.ResponseWriter, r *http.Request) {
-	rows, _ := db.Query("SELECT id,hold_id,items_json,customer_name,created_at FROM holds ORDER BY created_at DESC")
+	rows, err := db.Query("SELECT id,hold_id,items_json,customer_name,created_at FROM holds ORDER BY created_at DESC")
+	if err != nil {
+		logError("handleGetHolds", err)
+		jsonResponse(w, []map[string]interface{}{}, 200)
+		return
+	}
 	defer rows.Close()
 	var holds []map[string]interface{}
 	for rows.Next() {
@@ -891,7 +901,12 @@ func handleGetTransactions(w http.ResponseWriter, r *http.Request) {
 	q += " ORDER BY created_at DESC LIMIT ?"
 	args = append(args, limit)
 
-	rows, _ := db.Query(q, args...)
+	rows, err := db.Query(q, args...)
+	if err != nil {
+		logError("handleGetTransactions", err)
+		jsonResponse(w, []map[string]interface{}{}, 200)
+		return
+	}
 	defer rows.Close()
 	var txs []map[string]interface{}
 	for rows.Next() {
@@ -1384,7 +1399,12 @@ func handleRestore(w http.ResponseWriter, r *http.Request) {
 
 // === Settings ===
 func handleGetSettings(w http.ResponseWriter, r *http.Request) {
-	rows, _ := db.Query("SELECT key, value FROM settings")
+	rows, err := db.Query("SELECT key, value FROM settings")
+	if err != nil {
+		logError("handleGetSettings", err)
+		jsonResponse(w, map[string]string{}, 200)
+		return
+	}
 	defer rows.Close()
 	settings := map[string]string{}
 	for rows.Next() {

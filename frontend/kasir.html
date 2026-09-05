@@ -206,7 +206,10 @@ input,select,button{font-family:inherit}
 <div style="flex:2;display:flex;flex-direction:column;overflow:hidden">
   <div class="header">
     <div class="header-title">🛒 <span>Kasir</span></div>
-    <input class="search-box" id="search" placeholder="🔍 Cari produk..." oninput="searchProducts()">
+    <div style="display:flex;align-items:center;gap:8px">
+      <span style="background:#e0f2fe;color:#0369a1;padding:4px 8px;border-radius:6px;font-size:11px;font-weight:600;display:flex;align-items:center;gap:4px">⚡ Scanner Ready</span>
+      <input class="search-box" id="search" placeholder="🔍 Cari nama, SKU, atau scan barcode..." oninput="searchProducts()">
+    </div>
   </div>
   <div class="products-area">
     <div id="products" class="products-grid"></div>
@@ -276,8 +279,20 @@ input,select,button{font-family:inherit}
 </div>
 
 <script>
-var cart=[],payment="CASH",ppnRate=11,currentUser="",currentDisplayName="",currentToken="",currentShiftId=null,activeMember=null,lastTxReceipt=null;
+var cart=[],payment="CASH",ppnRate=11,currentUser="",currentDisplayName="",currentToken="",currentShiftId=null,activeMember=null,lastTxReceipt=null,csrfToken="";
 var API="";
+
+async function fetchCSRF(){
+  var token=currentToken||sessionStorage.getItem("kasir_token")||"";
+  if(!token)return;
+  try{
+    var r=await fetch(API+"/api/csrf-token",{headers:{"Authorization":token}});
+    var d=await r.json();
+    if(d.csrf_token){
+      csrfToken=d.csrf_token;
+    }
+  }catch(e){}
+}
 
 // LOGIN
 async function doLogin(){
@@ -290,6 +305,7 @@ async function doLogin(){
     sessionStorage.setItem("kasir_token",d.token);
     sessionStorage.setItem("kasir_user",d.username);
     sessionStorage.setItem("kasir_display_name",d.display_name);
+    await fetchCSRF();
     document.getElementById("login-screen").style.display="none";
     document.getElementById("shift-screen").style.display="flex";
     document.getElementById("shift-user-info").textContent=d.display_name;
@@ -304,15 +320,26 @@ async function openShift(){
   var name=document.getElementById("shift-name").value||"Shift";
   var cash=parseInt(document.getElementById("opening-cash").value)||500000;
   var token=currentToken||sessionStorage.getItem("kasir_token")||"";
-  var r=await fetch(API+"/api/shifts/open",{method:"POST",headers:{"Content-Type":"application/json","Authorization":token,"X-CSRF-Token":csrfToken},body:JSON.stringify({cashier:currentUser,shift_name:name,opening_cash:cash})});
-  var d=await r.json();
-  if(d.shift_id){
-    currentShiftId=d.shift_id;
-    sessionStorage.setItem("kasir_shift_id",d.shift_id);
-    document.getElementById("shift-screen").style.display="none";
-    document.getElementById("kasir-screen").style.display="flex";
-    document.getElementById("kasir-user-info").textContent="Kasir: "+currentDisplayName+" | Shift: #"+currentShiftId;
-    loadProducts();
+  if(!csrfToken) await fetchCSRF();
+  try{
+    var r=await fetch(API+"/api/shifts/open",{
+      method:"POST",
+      headers:{"Content-Type":"application/json","Authorization":token,"X-CSRF-Token":csrfToken},
+      body:JSON.stringify({cashier:currentUser,shift_name:name,opening_cash:cash})
+    });
+    var d=await r.json();
+    if(d.shift_id){
+      currentShiftId=d.shift_id;
+      sessionStorage.setItem("kasir_shift_id",d.shift_id);
+      document.getElementById("shift-screen").style.display="none";
+      document.getElementById("kasir-screen").style.display="flex";
+      document.getElementById("kasir-user-info").textContent="Kasir: "+currentDisplayName+" | Shift: #"+currentShiftId;
+      loadProducts();
+    }else{
+      alert(d.error||d.message||"Gagal membuka shift");
+    }
+  }catch(e){
+    alert("Koneksi gagal: "+e.message);
   }
 }
 
@@ -323,6 +350,7 @@ async function logoutKasir(){
   var shiftId=currentShiftId||sessionStorage.getItem("kasir_shift_id");
   if(shiftId){
     try{
+      if(!csrfToken) await fetchCSRF();
       await fetch(API+"/api/shifts/"+shiftId+"/close-self",{
         method:"POST",
         headers:{"Content-Type":"application/json","Authorization":token,"X-CSRF-Token":csrfToken},
@@ -350,6 +378,7 @@ async function restoreKasirSession(){
     currentUser=user;
     currentDisplayName=disp||user;
     currentToken=token;
+    await fetchCSRF();
 
     if(shiftId){
       currentShiftId=parseInt(shiftId);
@@ -382,11 +411,15 @@ async function restoreKasirSession(){
 }
 
 // PRODUCTS
+var allLoadedProducts = [];
 async function loadProducts(search){
   var url=API+"/api/products";
   if(search)url+="?search="+encodeURIComponent(search);
   var r=await fetch(url);
   var products=await r.json();
+  if(!search || allLoadedProducts.length===0){
+    allLoadedProducts = products;
+  }
   var el=document.getElementById("products");
   var cats={"Makanan":"🍜","Minuman":"🥤","Snack":"🍿","Lainnya":"📦"};
   el.innerHTML=products.map(function(p){
@@ -482,19 +515,31 @@ async function checkout(){
   if(discountType==="percent"){discount=Math.round(subtotal*discountInput/100)}
   else{discount=discountInput}
   var items=cart.map(function(i){return{product_id:i.product_id,qty:i.qty,discount:0,notes:""}});
-  var r=await fetch(API+"/api/checkout",{method:"POST",headers:{"Content-Type":"application/json","X-CSRF-Token":csrfToken},body:JSON.stringify({items:items,payment:payment,discount:discount,discount_type:discountType,amount_paid:paid,cashier:currentUser,shift_id:currentShiftId,member_id:activeMember?activeMember.member_id:""})});
-  var tx=await r.json();
-  if(tx.id){
-    lastTxReceipt=tx;
-    document.getElementById("modal-tx-id").textContent=tx.id;
-    document.getElementById("modal-total").textContent="Rp "+tx.grand_total.toLocaleString("id-ID");
-    if(tx.warnings&&tx.warnings.length>0){alert("Perhatian:\n"+tx.warnings.join("\n"))}
-    if(tx.change>0){document.getElementById("modal-change-row").style.display="block";document.getElementById("modal-change").textContent="Rp "+tx.change.toLocaleString("id-ID")}
-    else{document.getElementById("modal-change-row").style.display="none"}
-    document.getElementById("modal-receipt").innerHTML="<b>Items:</b> "+tx.items.map(function(i){return esc(i.name)+" x"+i.qty}).join(", ");
-    document.getElementById("payment-modal").style.display="flex";
-    cart=[];document.getElementById("amount-paid").value="";renderCart();
-    fetch(API+"/api/ws-broadcast",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({type:"new_transaction",data:{...tx,cashier:currentDisplayName,member:activeMember?activeMember.name:""}})}).catch(function(){});
+  var token=currentToken||sessionStorage.getItem("kasir_token")||"";
+  if(!csrfToken) await fetchCSRF();
+  try{
+    var r=await fetch(API+"/api/checkout",{
+      method:"POST",
+      headers:{"Content-Type":"application/json","Authorization":token,"X-CSRF-Token":csrfToken},
+      body:JSON.stringify({items:items,payment:payment,discount:discount,discount_type:discountType,amount_paid:paid,cashier:currentUser,shift_id:currentShiftId,member_id:activeMember?activeMember.member_id:""})
+    });
+    var tx=await r.json();
+    if(tx.id){
+      lastTxReceipt=tx;
+      document.getElementById("modal-tx-id").textContent=tx.id;
+      document.getElementById("modal-total").textContent="Rp "+tx.grand_total.toLocaleString("id-ID");
+      if(tx.warnings&&tx.warnings.length>0){alert("Perhatian:\n"+tx.warnings.join("\n"))}
+      if(tx.change>0){document.getElementById("modal-change-row").style.display="block";document.getElementById("modal-change").textContent="Rp "+tx.change.toLocaleString("id-ID")}
+      else{document.getElementById("modal-change-row").style.display="none"}
+      document.getElementById("modal-receipt").innerHTML="<b>Items:</b> "+tx.items.map(function(i){return esc(i.name)+" x"+i.qty}).join(", ");
+      document.getElementById("payment-modal").style.display="flex";
+      cart=[];document.getElementById("amount-paid").value="";renderCart();
+      fetch(API+"/api/ws-broadcast",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({type:"new_transaction",data:{...tx,cashier:currentDisplayName,member:activeMember?activeMember.name:""}})}).catch(function(){});
+    }else{
+      alert(tx.error||tx.message||"Checkout gagal");
+    }
+  }catch(e){
+    alert("Koneksi gagal: "+e.message);
   }
 }
 function closePaymentModal(){document.getElementById("payment-modal").style.display="none"}
@@ -558,10 +603,139 @@ function connectWS(){
   }catch(e){}
 }
 
-// KEYBOARD
-document.addEventListener("keydown",function(e){
-  if(e.target.tagName==="INPUT")return;
-  if(e.key==="Escape"){closePaymentModal();closeQrisModal()}
+// BARCODE SCANNER & AUDIO FEEDBACK
+var barcodeBuffer = "";
+var lastKeyTime = 0;
+
+function playAudioBeep(success) {
+  try {
+    var AudioContext = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContext) return;
+    var ctx = new AudioContext();
+    var osc = ctx.createOscillator();
+    var gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    if (success) {
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(1760, ctx.currentTime);
+      gain.gain.setValueAtTime(0.2, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.12);
+    } else {
+      osc.type = "triangle";
+      osc.frequency.setValueAtTime(330, ctx.currentTime);
+      gain.gain.setValueAtTime(0.3, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.25);
+    }
+  } catch(e) {}
+}
+
+function showBarcodeToast(msg, isSuccess) {
+  var t = document.getElementById("barcode-toast");
+  if (!t) {
+    t = document.createElement("div");
+    t.id = "barcode-toast";
+    t.style.cssText = "position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);padding:10px 22px;border-radius:10px;font-size:14px;font-weight:600;z-index:99999;box-shadow:0 10px 25px rgba(0,0,0,0.3);transition:all 0.25s ease-out;pointer-events:none;display:flex;align-items:center;gap:8px;opacity:0;";
+    document.body.appendChild(t);
+  }
+  t.style.background = isSuccess ? "#059669" : "#dc2626";
+  t.style.color = "#ffffff";
+  t.innerHTML = (isSuccess ? "⚡ " : "⚠️ ") + msg;
+  t.style.opacity = "1";
+  t.style.transform = "translateX(-50%) translateY(0)";
+  clearTimeout(t.timer);
+  t.timer = setTimeout(function() {
+    t.style.opacity = "0";
+    t.style.transform = "translateX(-50%) translateY(15px)";
+  }, 2400);
+}
+
+async function handleBarcodeScan(rawCode) {
+  var code = (rawCode || "").trim();
+  if (!code) return;
+
+  var p = allLoadedProducts.find(function(item) {
+    return (item.barcode && item.barcode.toLowerCase() === code.toLowerCase()) ||
+           (item.sku && item.sku.toLowerCase() === code.toLowerCase());
+  });
+
+  if (!p) {
+    try {
+      var res = await fetch(API + "/api/products?search=" + encodeURIComponent(code));
+      var list = await res.json();
+      p = list.find(function(item) {
+        return (item.barcode && item.barcode.toLowerCase() === code.toLowerCase()) ||
+               (item.sku && item.sku.toLowerCase() === code.toLowerCase());
+      });
+      if (p) allLoadedProducts.push(p);
+    } catch(e) {}
+  }
+
+  if (p) {
+    var price = p.promo_active && p.promo_price > 0 ? p.promo_price : p.price;
+    addToCart(p.id, p.name, price, p.stock);
+    playAudioBeep(true);
+    showBarcodeToast("Discan: " + p.name + " (" + (p.barcode || p.sku) + ")", true);
+  } else {
+    playAudioBeep(false);
+    showBarcodeToast("Barcode tidak ditemukan: " + code, false);
+  }
+}
+
+// KEYBOARD & SCANNER LISTENER
+document.addEventListener("keydown", function(e) {
+  if (e.key === "Escape") {
+    closePaymentModal();
+    closeQrisModal();
+    return;
+  }
+
+  var kasirScreen = document.getElementById("kasir-screen");
+  if (!kasirScreen || kasirScreen.style.display !== "flex") return;
+  if (document.getElementById("payment-modal").style.display === "flex") return;
+
+  var now = Date.now();
+  var delta = now - lastKeyTime;
+  lastKeyTime = now;
+
+  // Scanner terminates with Enter
+  if (e.key === "Enter") {
+    if (barcodeBuffer.length >= 3) {
+      e.preventDefault();
+      var scanned = barcodeBuffer;
+      barcodeBuffer = "";
+      if (e.target && e.target.id === "search") {
+        e.target.value = "";
+        searchProducts();
+      }
+      handleBarcodeScan(scanned);
+      return;
+    }
+    // Cashier pressed Enter inside search input
+    if (e.target && e.target.id === "search" && e.target.value.trim().length >= 3) {
+      e.preventDefault();
+      var query = e.target.value.trim();
+      e.target.value = "";
+      searchProducts();
+      handleBarcodeScan(query);
+      return;
+    }
+    barcodeBuffer = "";
+    return;
+  }
+
+  // If time between keystrokes is too long (> 80ms), start new buffer
+  if (delta > 80) {
+    barcodeBuffer = "";
+  }
+
+  if (e.key && e.key.length === 1) {
+    barcodeBuffer += e.key;
+  }
 });
 
 // INIT
